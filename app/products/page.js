@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   ShoppingCart,
   Search,
@@ -13,9 +13,9 @@ import {
   Send,
   Trash2,
   Eye,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "react-toastify";
-// import api from "@/utils/api";
 import api from "../../utils/api";
 
 // Import shadcn UI components
@@ -82,27 +82,54 @@ const ProductPage = () => {
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
+  // Refs for cleanup
+  const cartTimeoutRef = useRef(null);
+  const abortControllerRef = useRef(new AbortController());
+
+  // Memoized filtered products
+  const filteredProducts = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    const category = selectedCategory;
+    
+    return products.filter((product) => {
+      const matchesSearch =
+        product.name.toLowerCase().includes(query) ||
+        product.description.toLowerCase().includes(query);
+
+      const matchesCategory =
+        category === "all" || product.product_category === parseInt(category);
+
+      return matchesSearch && matchesCategory;
+    });
+  }, [products, searchQuery, selectedCategory]);
+
+  // Memoized cart total
+  const cartTotal = useMemo(() => {
+    return cart.reduce(
+      (total, item) => total + parseFloat(item.price) * item.quantity,
+      0
+    ).toFixed(2);
+  }, [cart]);
+
   // Fetch products and categories on component mount
   useEffect(() => {
-    const controller = new AbortController();
     const fetchData = async () => {
+      abortControllerRef.current = new AbortController();
       try {
         const [productsResponse, categoriesResponse] = await Promise.all([
-          api.get("/api/products/", { signal: controller.signal }),
-          api.get("/api/product-categories/", { signal: controller.signal }),
+          api.get("/api/products/", { signal: abortControllerRef.current.signal }),
+          api.get("/api/product-categories/", { signal: abortControllerRef.current.signal }),
         ]);
 
         setProducts(productsResponse.data);
         setCategories(categoriesResponse.data);
       } catch (error) {
-        if (!controller.signal.aborted) {
+        if (error.name !== 'AbortError') {
           console.error("Failed to fetch data", error);
           toast.error("Failed to load products");
         }
       } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     };
 
@@ -119,7 +146,9 @@ const ProductPage = () => {
       }
     }
 
-    return () => controller.abort();
+    return () => {
+      abortControllerRef.current.abort();
+    };
   }, []);
 
   // Save cart to localStorage whenever it changes
@@ -131,123 +160,106 @@ const ProductPage = () => {
   useEffect(() => {
     if (!activeProduct) return;
 
-    const controller = new AbortController();
     const fetchReviews = async () => {
       setLoadingReviews(true);
+      abortControllerRef.current = new AbortController();
       try {
         const response = await api.get(
           `/api/reviews/?product=${activeProduct.id}&limit=5`,
-          { signal: controller.signal }
+          { signal: abortControllerRef.current.signal }
         );
         setReviews(response.data);
         setReviewForm((prev) => ({ ...prev, product: activeProduct.id }));
       } catch (error) {
-        if (!controller.signal.aborted) {
+        if (error.name !== 'AbortError') {
           console.error("Failed to fetch reviews", error);
         }
       } finally {
-        if (!controller.signal.aborted) {
-          setLoadingReviews(false);
-        }
+        setLoadingReviews(false);
       }
     };
 
     fetchReviews();
-    return () => controller.abort();
+    return () => {
+      abortControllerRef.current.abort();
+    };
   }, [activeProduct]);
 
-  // Filter products based on search and category
-  const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
-      const matchesSearch =
-        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.description.toLowerCase().includes(searchQuery.toLowerCase());
+  // Close cart automatically after 3 seconds when empty
+  useEffect(() => {
+    if (cartOpen && cart.length === 0) {
+      cartTimeoutRef.current = setTimeout(() => {
+        setCartOpen(false);
+      }, 3000);
+    }
 
-      const matchesCategory =
-        selectedCategory === "all"
-          ? true
-          : product.product_category === parseInt(selectedCategory);
+    return () => {
+      if (cartTimeoutRef.current) {
+        clearTimeout(cartTimeoutRef.current);
+      }
+    };
+  }, [cartOpen, cart.length]);
 
-      return matchesSearch && matchesCategory;
+  // Cart handlers
+  const addToCart = useCallback((product) => {
+    if (processingAction) return;
+    setProcessingAction(true);
+
+    setCart((prevCart) => {
+      const existingItem = prevCart.find((item) => item.id === product.id);
+      return existingItem
+        ? prevCart.map((item) =>
+            item.id === product.id
+              ? { ...item, quantity: item.quantity + 1 }
+              : item
+          )
+        : [...prevCart, { ...product, quantity: 1 }];
     });
-  }, [products, searchQuery, selectedCategory]);
 
-  // Calculate total cart price
-  const cartTotal = useMemo(() => {
-    return cart.reduce(
-      (total, item) => total + parseFloat(item.price) * item.quantity,
-      0
+    toast.success("Added to cart!");
+    setProcessingAction(false);
+  }, [processingAction]);
+
+  const updateQuantity = useCallback((id, amount) => {
+    if (processingAction) return;
+    setProcessingAction(true);
+
+    setCart((prevCart) =>
+      prevCart
+        .map((item) => {
+          if (item.id === id) {
+            const newQuantity = item.quantity + amount;
+            return newQuantity > 0 ? { ...item, quantity: newQuantity } : null;
+          }
+          return item;
+        })
+        .filter(Boolean)
     );
-  }, [cart]);
 
-  // Add product to cart
-  const addToCart = useCallback(
-    (product) => {
-      if (processingAction) return;
-      setProcessingAction(true);
+    setProcessingAction(false);
+  }, [processingAction]);
 
-      setCart((prevCart) => {
-        const existingItem = prevCart.find((item) => item.id === product.id);
-        return existingItem
-          ? prevCart.map((item) =>
-              item.id === product.id
-                ? { ...item, quantity: item.quantity + 1 }
-                : item
-            )
-          : [...prevCart, { ...product, quantity: 1 }];
-      });
+  const removeFromCart = useCallback((id) => {
+    if (processingAction) return;
+    setProcessingAction(true);
 
-      toast.success("Added to cart!");
-      setProcessingAction(false);
-    },
-    [processingAction]
-  );
+    setCart((prevCart) => prevCart.filter((item) => item.id !== id));
+    toast.success("Item removed from cart");
+    setProcessingAction(false);
+  }, [processingAction]);
 
-  // Update cart item quantity
-  const updateQuantity = useCallback(
-    (id, amount) => {
-      if (processingAction) return;
-      setProcessingAction(true);
-
-      setCart((prevCart) =>
-        prevCart
-          .map((item) => {
-            if (item.id === id) {
-              const newQuantity = item.quantity + amount;
-              return newQuantity > 0
-                ? { ...item, quantity: newQuantity }
-                : null;
-            }
-            return item;
-          })
-          .filter(Boolean)
-      );
-
-      setProcessingAction(false);
-    },
-    [processingAction]
-  );
-
-  // Remove item from cart
-  const removeFromCart = useCallback(
-    (id) => {
-      if (processingAction) return;
-      setProcessingAction(true);
-
-      setCart((prevCart) => prevCart.filter((item) => item.id !== id));
-      toast.success("Item removed from cart");
-      setProcessingAction(false);
-    },
-    [processingAction]
-  );
-
-  // Handle product details modal
+  // Product details handler
   const openProductDetails = useCallback((product) => {
     setActiveProduct(product);
     setProductModalOpen(true);
   }, []);
 
-  // Handle review form submission
+  // Review handlers
+  const handleReviewChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setReviewForm((prev) => ({ ...prev, [name]: value }));
+  }, []);
+
   const submitReview = useCallback(async () => {
     if (isSubmittingReview) return;
 
@@ -275,14 +287,25 @@ const ProductPage = () => {
     }
   }, [activeProduct, isSubmittingReview, reviewForm]);
 
-  // Handle checkout form submission
+  // Checkout handlers
+  const validatePhoneNumber = useCallback((phone) => {
+    const kenyanPhoneRegex = /^\+254[17]\d{8}$/;
+    return kenyanPhoneRegex.test(phone);
+  }, []);
+
+  const handleCheckoutChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setCheckoutForm((prev) => ({ ...prev, [name]: value }));
+  }, []);
+
   const handleCheckout = useCallback(async () => {
-    if (
-      !checkoutForm.customer_name ||
-      !checkoutForm.phone_number ||
-      !checkoutForm.delivery_address
-    ) {
-      toast.error("Please fill in all fields");
+    if (!checkoutForm.customer_name || !checkoutForm.phone_number || !checkoutForm.delivery_address) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    if (!validatePhoneNumber(checkoutForm.phone_number)) {
+      toast.error("Please enter a valid Kenyan phone number (format: +254 followed by 7 or 1 and 8 digits)");
       return;
     }
 
@@ -316,17 +339,7 @@ const ProductPage = () => {
     } finally {
       setIsPlacingOrder(false);
     }
-  }, [cart, checkoutForm]);
-
-  // Handle form input changes
-  const handleFormChange = useCallback((e, formType) => {
-    const { name, value } = e.target;
-    if (formType === "review") {
-      setReviewForm((prev) => ({ ...prev, [name]: value }));
-    } else if (formType === "checkout") {
-      setCheckoutForm((prev) => ({ ...prev, [name]: value }));
-    }
-  }, []);
+  }, [cart, checkoutForm, validatePhoneNumber]);
 
   if (loading) {
     return (
@@ -339,9 +352,9 @@ const ProductPage = () => {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header with search and cart */}
-      <header className="bg-card sticky top-0 z-10 shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold"> Gravien Shop </h1>
+      <header className="bg-card/95 backdrop-blur-sm sticky top-12 z-10 shadow-sm">
+      <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+          <h1 className="text-1xl font-bold">Gravien Shop</h1>
 
           <div className="flex space-x-4 items-center">
             <div className="relative hidden md:block w-64">
@@ -372,6 +385,7 @@ const ProductPage = () => {
           </div>
         </div>
       </header>
+
       {/* Mobile search bar */}
       <div className="container mx-auto px-4 py-3 md:hidden">
         <div className="relative">
@@ -385,10 +399,10 @@ const ProductPage = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
         </div>
       </div>
-      {/* Main content */}
-      <main className="container mx-auto px-4 py-8">
-        {/* Filters */}
-        <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+
+      {/* Sticky Filter Section */}
+      <div className="sticky top-[calc(3.5rem+1px)] z-10 bg-background/95 backdrop-blur-sm mb-8">
+        <div className="container mx-auto px-4 py-3 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <Card className="w-full md:w-auto">
             <CardContent className="p-4 flex items-center gap-2">
               <Filter className="h-5 w-5 text-muted-foreground" />
@@ -419,7 +433,10 @@ const ProductPage = () => {
             Showing {filteredProducts.length} of {products.length} products
           </Badge>
         </div>
+      </div>
 
+      {/* Main content */}
+      <main className="container mx-auto px-4 pb-8">
         {/* Product grid */}
         {filteredProducts.length === 0 ? (
           <div className="text-center py-12">
@@ -441,64 +458,41 @@ const ProductPage = () => {
           </div>
         )}
       </main>
+
       {/* Cart sidebar */}
       <div
         className={`fixed inset-y-0 right-0 w-full md:w-96 bg-background border-l transform ${
           cartOpen ? "translate-x-0" : "translate-x-full"
-        } transition-transform duration-300 ease-in-out z-20`}
+        } transition-transform duration-300 ease-in-out z-20 shadow-lg`}
       >
-        <div className="h-full flex flex-col mb-2">
-          <div className="p-4 border-b flex flex-col md:flex-row justify-between items-start md:items-center">
-            <div className="flex items-center gap-3 mb-7 md:mb-0">
-              <div className="relative group">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setCartOpen(false)}
-                  className="text-primary"
-                  aria-label="Continue Shopping"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="lucide lucide-arrow-left"
-                  >
-                    <path d="m12 19-7-7 7-7" />
-                    <path d="M19 12H5" />
-                  </svg>
-                </Button>
-                <span className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 px-2 py-1 bg-black/80 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                  Continue Shopping
-                </span>
-              </div>
-              <h2 className="text-xl font-bold">Your Cart</h2>
-            </div>
-            <div className="relative group">
+        <div className="h-full flex flex-col">
+          <div className="p-4 border-b flex justify-between items-center bg-background/95 backdrop-blur-sm">
+            <div className="flex items-center gap-3">
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setCartOpen(false)}
+                className="text-primary"
+                aria-label="Continue Shopping"
               >
-                <X className="h-5 w-5" />
+                <ArrowLeft className="h-5 w-5" />
               </Button>
-              <span className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 px-2 py-1 bg-black/80 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                Close Cart
-              </span>
+              <h2 className="text-xl font-bold text-foreground">Your Cart</h2>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setCartOpen(false)}
+            >
+              <X className="h-5 w-5 text-foreground" />
+            </Button>
           </div>
 
           <div className="flex-grow overflow-auto p-4">
             {cart.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
                 <ShoppingCart className="h-16 w-16 mb-4" />
-                <p>Your cart is empty</p>
+                <p className="text-foreground">Your cart is empty</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -515,9 +509,9 @@ const ProductPage = () => {
             )}
           </div>
 
-          <div className="p-4 border-t">
+          <div className="p-4 border-t bg-background/95 backdrop-blur-sm">
             <div className="flex justify-between items-center mb-4">
-              <span className="font-medium">Total:</span>
+              <span className="font-medium text-foreground">Total:</span>
               <span className="text-xl font-bold text-primary">
                 Ksh.{cartTotal}
               </span>
@@ -533,6 +527,7 @@ const ProductPage = () => {
           </div>
         </div>
       </div>
+
       {/* Product Details Modal */}
       <Dialog open={productModalOpen} onOpenChange={setProductModalOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
@@ -558,6 +553,7 @@ const ProductPage = () => {
                           src={activeProduct.image}
                           alt={activeProduct.name}
                           className="w-full h-full object-contain"
+                          loading="lazy"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-muted-foreground">
@@ -570,7 +566,7 @@ const ProductPage = () => {
                       <div className="space-y-4">
                         <div>
                           <p className="text-2xl font-bold text-primary">
-                            Ksh.{parseFloat(activeProduct.price)}
+                            Ksh.{parseFloat(activeProduct.price).toFixed(2)}
                           </p>
                         </div>
 
@@ -592,9 +588,7 @@ const ProductPage = () => {
 
                         <Button
                           className="w-full mt-6"
-                          onClick={() => {
-                            addToCart(activeProduct);
-                          }}
+                          onClick={() => addToCart(activeProduct)}
                           disabled={processingAction}
                         >
                           Add to Cart
@@ -646,8 +640,9 @@ const ProductPage = () => {
                             Your Name
                           </label>
                           <Input
+                            name="reviewer_name"
                             value={reviewForm.reviewer_name}
-                            onChange={(e) => handleFormChange(e, "review")}
+                            onChange={handleReviewChange}
                             placeholder="Enter your name"
                           />
                         </div>
@@ -657,8 +652,9 @@ const ProductPage = () => {
                             Review
                           </label>
                           <Textarea
+                            name="comment"
                             value={reviewForm.comment}
-                            onChange={(e) => handleFormChange(e, "review")}
+                            onChange={handleReviewChange}
                             placeholder="Write your review here..."
                             rows={3}
                           />
@@ -719,18 +715,14 @@ const ProductPage = () => {
             {/* Full Name */}
             <div>
               <label className="block text-sm font-medium mb-2">
-                Full Name
+                Full Name <span className="text-red-500">*</span>
               </label>
               <Input
                 name="customer_name"
                 value={checkoutForm.customer_name}
-                onChange={(e) =>
-                  setCheckoutForm((prev) => ({
-                    ...prev,
-                    customer_name: e.target.value,
-                  }))
-                }
+                onChange={handleCheckoutChange}
                 placeholder="Enter your full name"
+                required
               />
             </div>
 
@@ -741,12 +733,7 @@ const ProductPage = () => {
                 type="email"
                 name="email"
                 value={checkoutForm.email}
-                onChange={(e) =>
-                  setCheckoutForm((prev) => ({
-                    ...prev,
-                    email: e.target.value,
-                  }))
-                }
+                onChange={handleCheckoutChange}
                 placeholder="Enter your email"
               />
             </div>
@@ -754,37 +741,29 @@ const ProductPage = () => {
             {/* Phone Number */}
             <div>
               <label className="block text-sm font-medium mb-2">
-                Phone Number
+                Phone Number <span className="text-red-500">*</span>
               </label>
               <Input
                 name="phone_number"
                 value={checkoutForm.phone_number}
-                onChange={(e) =>
-                  setCheckoutForm((prev) => ({
-                    ...prev,
-                    phone_number: e.target.value,
-                  }))
-                }
-                placeholder="Enter your phone number"
+                onChange={handleCheckoutChange}
+                placeholder="+254XXXXXXXXX (Kenyan format)"
+                required
               />
             </div>
 
             {/* Delivery Address */}
             <div>
               <label className="block text-sm font-medium mb-2">
-                Delivery Address
+                Delivery Address <span className="text-red-500">*</span>
               </label>
               <Textarea
                 name="delivery_address"
                 value={checkoutForm.delivery_address}
-                onChange={(e) =>
-                  setCheckoutForm((prev) => ({
-                    ...prev,
-                    delivery_address: e.target.value,
-                  }))
-                }
-                placeholder="Enter your delivery address"
+                onChange={handleCheckoutChange}
+                placeholder="Enter your complete delivery address"
                 rows={3}
+                required
               />
             </div>
 
@@ -801,7 +780,7 @@ const ProductPage = () => {
                       <span>{item.quantity} ×</span>
                       <span className="font-medium">{item.name}</span>
                     </div>
-                    <span>Ksh.{parseFloat(item.price) * item.quantity}</span>
+                    <span>Ksh.{(parseFloat(item.price) * item.quantity).toFixed(2)}</span>
                   </div>
                 ))}
 
