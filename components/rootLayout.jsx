@@ -201,8 +201,8 @@ const SiteLayout = ({ children }) => {
               </NavigationMenuItem>
 
               <NavigationMenuItem>
-                <Link href="/flash-sales" className="px-4 py-2">
-                  Flash Sales
+                <Link href="/properties" className="px-4 py-2">
+                  House Hunting
                 </Link>
               </NavigationMenuItem>
 
@@ -275,6 +275,21 @@ const SiteLayout = ({ children }) => {
                   <DropdownMenuItem>
                     <Link href="/admin/manageUsers" className="flex w-full">
                       Manage Users
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/admin/manageBookings" className="flex w-full">
+                      Manage Bookings
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/admin/manageProperties" className="flex w-full">
+                     Manage Properties
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/admin/manageTypes" className="flex w-full">
+                      Manage Types
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>

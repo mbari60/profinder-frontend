@@ -6,15 +6,11 @@ import {
   Plus,
   Pencil,
   Trash2,
-  Check,
-  X,
-  Link as LinkIcon,
-  Instagram,
   Facebook,
   Twitter,
+  Instagram,
   Linkedin,
 } from "lucide-react";
-
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,35 +23,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { toast } from "react-toastify";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-
-// Assuming you have an api service configured
+import { toast } from "react-toastify";
 import api from "@/utils/api";
 
 const ServiceProviderManagement = () => {
+  // State management
   const [providers, setProviders] = useState([]);
   const [services, setServices] = useState([]);
   const [counties, setCounties] = useState([]);
@@ -70,6 +53,7 @@ const ServiceProviderManagement = () => {
   const [previewURL, setPreviewURL] = useState(null);
   const [currentProvider, setCurrentProvider] = useState(null);
 
+  // Form data state
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -87,17 +71,16 @@ const ServiceProviderManagement = () => {
     is_active: true,
   });
 
-  // Fetch data from the backend
+  // Fetch all necessary data
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [providersRes, servicesRes, countiesRes, areasRes] =
-        await Promise.all([
-          api.get("/api/service-providers/"),
-          api.get("/api/services/"),
-          api.get("/api/counties/"),
-          api.get("/api/specific-areas/"),
-        ]);
+      const [providersRes, servicesRes, countiesRes, areasRes] = await Promise.all([
+        api.get("/api/service-providers/"),
+        api.get("/api/services/"),
+        api.get("/api/counties/"),
+        api.get("/api/specific-areas/"),
+      ]);
       setProviders(providersRes.data);
       setServices(servicesRes.data);
       setCounties(countiesRes.data);
@@ -105,25 +88,22 @@ const ServiceProviderManagement = () => {
       setError(null);
     } catch (err) {
       setError("Failed to fetch data. Please try again.");
-      toast({
-        variant: "destructive",
-        title: "Error fetching data",
-        description: "Could not load necessary data. Please refresh the page.",
-      });
+      toast.error(err.response?.data?.message || "Could not load data. Please refresh.");
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // Initial data fetch
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Replace the filtered areas useMemo with a useEffect that updates the existing state
+  // Filter areas based on selected county
   useEffect(() => {
     if (formData.county) {
-      const countyId = parseInt(formData.county);
-      setFilteredAreas(areas.filter((area) => area.county === countyId));
+      const filtered = areas.filter(area => area.county.toString() === formData.county.toString());
+      setFilteredAreas(filtered);
     } else {
       setFilteredAreas([]);
     }
@@ -134,21 +114,15 @@ const ServiceProviderManagement = () => {
     const file = e.target.files[0];
     if (file) {
       // Clean up previous object URL to prevent memory leaks
-      if (previewURL && previewURL.startsWith("blob:")) {
-        URL.revokeObjectURL(previewURL);
-      }
+      if (previewURL) URL.revokeObjectURL(previewURL);
       setSelectedFile(file);
       setPreviewURL(URL.createObjectURL(file));
     }
   };
 
-  // Reset form data - improved with a single state update
+  // Reset form data
   const resetForm = () => {
-    // Clean up object URL when resetting
-    if (previewURL && previewURL.startsWith("blob:")) {
-      URL.revokeObjectURL(previewURL);
-    }
-
+    if (previewURL) URL.revokeObjectURL(previewURL);
     setFormData({
       name: "",
       email: "",
@@ -165,334 +139,224 @@ const ServiceProviderManagement = () => {
       is_verified: false,
       is_active: true,
     });
-
     setSelectedFile(null);
     setPreviewURL(null);
   };
 
-  // Optimized form validation
+  // Form validation
   const validateForm = () => {
     const errors = [];
-
-    // Validate at least one social link is present
-    const hasSocialLink =
-      formData.twitter_link ||
-      formData.tiktok_link ||
-      formData.facebook_link ||
-      formData.instagram_link;
-
-    if (!hasSocialLink) {
-      errors.push("At least one social media link must be provided.");
+    
+    if (!formData.name.trim()) errors.push("Name is required");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.push("Valid email is required");
+    if (!/^\+254\d{9}$/.test(formData.phone_number)) errors.push("Phone must be +254 followed by 9 digits");
+    if (!formData.county) errors.push("County is required");
+    if (!formData.specific_area) errors.push("Specific area is required");
+    if (formData.services.length === 0) errors.push("At least one service is required");
+    if (!formData.professional_level) errors.push("Professional level is required");
+    if (!formData.twitter_link && !formData.tiktok_link && !formData.facebook_link && !formData.instagram_link) {
+      errors.push("At least one social link is required");
     }
 
-    // Validate phone number format
-    if (
-      !formData.phone_number.startsWith("+254") ||
-      formData.phone_number.length !== 13
-    ) {
-      errors.push(
-        "Phone number must start with +254 and be 13 characters long."
-      );
-    }
-
-    // Validate services selection
-    if (formData.services.length === 0) {
-      errors.push("At least one service must be selected.");
-    }
-
-    // Display errors if any
     if (errors.length > 0) {
-      toast({
-        variant: "destructive",
-        title: "Validation Error",
-        description: errors[0], // Show first error
-      });
+      toast.error(errors[0]);
       return false;
     }
-
     return true;
   };
 
-  // Helper function to prepare FormData - reduces code duplication
+  // Prepare FormData for submission
   const prepareFormData = () => {
-    const providerData = new FormData();
-
-    // Add text fields
-    providerData.append("name", formData.name);
-    providerData.append("email", formData.email);
-    providerData.append("phone_number", formData.phone_number);
-    providerData.append("description", formData.description || "");
-
-    // Convert numeric fields
-    providerData.append("county", parseInt(formData.county));
-    providerData.append("specific_area", parseInt(formData.specific_area));
-
-    providerData.append("professional_level", formData.professional_level);
-    providerData.append("facebook_link", formData.facebook_link || "");
-    providerData.append("twitter_link", formData.twitter_link || "");
-    providerData.append("instagram_link", formData.instagram_link || "");
-    providerData.append("tiktok_link", formData.tiktok_link || "");
-
-    // Handle boolean values
-    providerData.append("is_active", formData.is_active);
-    providerData.append("is_verified", formData.is_verified);
-
-    // Handle services array correctly
-    formData.services.forEach((serviceId) => {
-      providerData.append("services", parseInt(serviceId));
+    const formDataToSend = new FormData();
+    
+    // Append all fields
+    Object.entries(formData).forEach(([key, value]) => {
+      if (key === 'services') {
+        value.forEach(serviceId => formDataToSend.append('services', serviceId));
+      } else if (value !== null && value !== undefined) {
+        formDataToSend.append(key, value);
+      }
     });
 
-    // Add photo if selected
+    // Append photo if selected
     if (selectedFile) {
-      providerData.append("photo", selectedFile);
+      formDataToSend.append('photo', selectedFile);
     }
 
-    return providerData;
+    return formDataToSend;
   };
 
-  // Add new service provider - simplified
+  // Handle provider creation
   const handleAddProvider = async (e) => {
     e.preventDefault();
-
-    if (!validateForm()) return;
-
-    try {
-      setLoading(true);
-      const providerData = prepareFormData();
-
-      await api.post("/api/service-providers/", providerData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      toast({
-        title: "Success",
-        description: "Service provider added successfully",
-      });
-
-      resetForm();
-      setIsAddDialogOpen(false);
-      fetchData();
-    } catch (err) {
-      console.error("Error adding provider:", err);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description:
-          err.response?.data?.message ||
-          "Failed to add service provider. Please try again.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Edit service provider - simplified
-  const handleEditProvider = async (e) => {
-    e.preventDefault();
-
     if (!validateForm()) return;
 
     try {
       setLoading(true);
       const formDataToSend = prepareFormData();
 
-      await api.put(
-        `/api/service-providers/${currentProvider.id}/`,
-        formDataToSend,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        }
-      );
-
-      toast({
-        title: "Success",
-        description: "Service provider updated successfully",
+      await api.post("/api/service-providers/", formDataToSend, {
+        headers: { "Content-Type": "multipart/form-data" },
       });
 
+      toast.success("Provider added successfully");
+      resetForm();
+      setIsAddDialogOpen(false);
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Failed to add provider");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle provider update
+  const handleEditProvider = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    try {
+      setLoading(true);
+      const formDataToSend = prepareFormData();
+
+      await api.put(`/api/service-providers/${currentProvider.id}/`, formDataToSend, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      toast.success("Provider updated successfully");
       resetForm();
       setIsEditDialogOpen(false);
       fetchData();
     } catch (err) {
-      console.error("Error updating provider:", err);
-      console.error("Backend Error:", err.response?.data);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description:
-          err.response?.data?.message ||
-          "Failed to update service provider. Please try again.",
-      });
+      toast.error(err.response?.data?.error || "Failed to update provider");
     } finally {
       setLoading(false);
     }
   };
 
-  // Delete service provider - with confirmation optimized
+  // Handle provider deletion
   const handleDeleteProvider = async (id) => {
-    if (
-      !window.confirm("Are you sure you want to delete this service provider?")
-    )
-      return;
+    if (!confirm("Are you sure you want to delete this provider?")) return;
 
     try {
       setLoading(true);
       await api.delete(`/api/service-providers/${id}/`);
-      toast({
-        title: "Success",
-        description: "Service provider deleted successfully",
-      });
+      toast.success("Provider deleted successfully");
       fetchData();
     } catch (err) {
-      console.error("Error deleting provider:", err);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to delete service provider. Please try again.",
-      });
+      toast.error("Failed to delete provider");
     } finally {
       setLoading(false);
     }
   };
 
-  // Initialize edit form - memoized helper function
+  // Initialize edit form
   const initializeEditForm = (provider) => {
     setCurrentProvider(provider);
-
-    // Clean up previous object URL
-    if (previewURL && previewURL.startsWith("blob:")) {
-      URL.revokeObjectURL(previewURL);
-    }
+    if (previewURL) URL.revokeObjectURL(previewURL);
 
     setFormData({
-      name: provider.name || "",
-      email: provider.email || "",
-      phone_number: provider.phone_number || "+254",
-      description: provider.description || "",
-      county: provider.county ? provider.county.toString() : "",
-      specific_area: provider.specific_area
-        ? provider.specific_area.toString()
-        : "",
-      twitter_link: provider.twitter_link || "",
-      tiktok_link: provider.tiktok_link || "",
-      facebook_link: provider.facebook_link || "",
-      instagram_link: provider.instagram_link || "",
-      services: provider.services || [],
-      professional_level: provider.professional_level || "",
-      is_verified: provider.is_verified || false,
-      is_active: provider.is_active || true,
+      name: provider.name,
+      email: provider.email,
+      phone_number: provider.phone_number,
+      description: provider.description,
+      county: provider.county?.toString(),
+      specific_area: provider.specific_area?.toString(),
+      twitter_link: provider.twitter_link,
+      tiktok_link: provider.tiktok_link,
+      facebook_link: provider.facebook_link,
+      instagram_link: provider.instagram_link,
+      services: provider.services?.map(s => s.toString()) || [],
+      professional_level: provider.professional_level,
+      is_verified: provider.is_verified,
+      is_active: provider.is_active,
     });
 
-    // Set preview URL if provider has photo
     setPreviewURL(provider.photo || null);
+    setSelectedFile(null);
     setIsEditDialogOpen(true);
   };
 
-  // Memoize filtered providers for better performance
+  // Memoized filtered providers for performance
   const filteredProviders = useMemo(() => {
     if (!searchTerm) return providers;
     const term = searchTerm.toLowerCase();
-    return providers.filter(
-      (provider) =>
-        provider.name.toLowerCase().includes(term) ||
-        provider.email.toLowerCase().includes(term) ||
-        provider.phone_number.includes(searchTerm)
+    return providers.filter(p => 
+      p.name.toLowerCase().includes(term) || 
+      p.email.toLowerCase().includes(term) ||
+      p.phone_number.includes(searchTerm)
     );
   }, [providers, searchTerm]);
 
-  // Memoized lookup functions for better performance
-  const serviceNameMap = useMemo(() => {
-    const map = {};
-    services.forEach((service) => {
-      map[service.id] = service.title;
-    });
-    return map;
-  }, [services]);
-
-  const countyNameMap = useMemo(() => {
-    const map = {};
-    counties.forEach((county) => {
-      map[county.id] = county.name;
-    });
-    return map;
-  }, [counties]);
-
-  const areaNameMap = useMemo(() => {
-    const map = {};
-    areas.forEach((area) => {
-      map[area.id] = area.name;
-    });
-    return map;
-  }, [areas]);
-
-  // Get service name by ID - using map for O(1) lookup
-  const getServiceName = (serviceId) =>
-    serviceNameMap[serviceId] || "Unknown Service";
-
-  // Get county name by ID - using map for O(1) lookup
-  const getCountyName = (countyId) =>
-    countyNameMap[countyId] || "Unknown County";
-
-  // Get area name by ID - using map for O(1) lookup
-  const getAreaName = (areaId) => areaNameMap[areaId] || "Unknown Area";
-
-  // Get initials for avatar - memoized for performance
+  // Get initials for avatar fallback
   const getInitials = useCallback((name) => {
     if (!name) return "SP";
     const names = name.split(" ");
-    if (names.length >= 2) {
-      return `${names[0].charAt(0)}${names[1].charAt(0)}`.toUpperCase();
-    }
-    return name.substring(0, 2).toUpperCase();
+    return names.length >= 2 
+      ? `${names[0][0]}${names[1][0]}`.toUpperCase()
+      : name.substring(0, 2).toUpperCase();
   }, []);
+
+  // Get service name by ID
+  const getServiceName = (serviceId) => {
+    const service = services.find(s => s.id === serviceId);
+    return service ? service.title : "Unknown Service";
+  };
+
+  // Get county name by ID
+  const getCountyName = (countyId) => {
+    const county = counties.find(c => c.id === countyId);
+    return county ? county.name : "Unknown County";
+  };
+
+  // Get area name by ID
+  const getAreaName = (areaId) => {
+    const area = areas.find(a => a.id === areaId);
+    return area ? area.name : "Unknown Area";
+  };
 
   return (
     <div className="p-4 max-w-7xl mx-auto space-y-4">
+      {/* Error display */}
       {error && (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
+      {/* Main card */}
       <Card className="w-full">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-xl font-bold">
-            Service Provider Management
-          </CardTitle>
+          <CardTitle className="text-xl font-bold">Service Provider Management</CardTitle>
           <Button onClick={() => setIsAddDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" /> Add Provider
           </Button>
         </CardHeader>
+        
         <CardContent>
+          {/* Search */}
           <div className="relative mb-6">
-            <Search
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-              size={18}
-            />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
             <Input
-              placeholder="Search providers by name, email or phone..."
+              placeholder="Search providers..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
             />
           </div>
 
+          {/* Loading state */}
           {loading ? (
             <div className="text-center py-8">
               <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
               <p>Loading providers...</p>
             </div>
-          ) : filteredProviders.length === 0 ? (
+          ) : /* Empty state */ filteredProviders.length === 0 ? (
             <div className="text-center py-8">
-              <div className="text-gray-400 mb-2">
-                <Search size={40} className="mx-auto" />
-              </div>
-              {searchTerm ? (
-                <p>No service providers match your search criteria</p>
-              ) : (
-                <p>No service providers found. Add your first provider!</p>
-              )}
+              <Search size={40} className="mx-auto text-gray-400 mb-2" />
+              <p>{searchTerm ? "No matching providers" : "No providers found"}</p>
             </div>
-          ) : (
+          ) : /* Provider cards */ (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredProviders.map((provider) => (
                 <Card key={provider.id} className="overflow-hidden">
@@ -508,20 +372,12 @@ const ServiceProviderManagement = () => {
                         </Avatar>
                       </div>
                       <div className="absolute top-2 right-2 flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="bg-white/20 hover:bg-white/40"
-                          onClick={() => initializeEditForm(provider)}
-                        >
+                        <Button variant="ghost" size="icon" className="bg-white/20 hover:bg-white/40"
+                          onClick={() => initializeEditForm(provider)}>
                           <Pencil size={16} className="text-white" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="bg-white/20 hover:bg-white/40"
-                          onClick={() => handleDeleteProvider(provider.id)}
-                        >
+                        <Button variant="ghost" size="icon" className="bg-white/20 hover:bg-white/40"
+                          onClick={() => handleDeleteProvider(provider.id)}>
                           <Trash2 size={16} className="text-white" />
                         </Button>
                       </div>
@@ -529,16 +385,10 @@ const ServiceProviderManagement = () => {
 
                     <div className="mt-12 p-4 space-y-4">
                       <div>
-                        <h3 className="text-lg font-semibold truncate">
-                          {provider.name}
-                        </h3>
+                        <h3 className="text-lg font-semibold truncate">{provider.name}</h3>
                         <div className="flex flex-wrap gap-1 mt-1">
-                          {provider.services.map((serviceId) => (
-                            <Badge
-                              key={serviceId}
-                              variant="secondary"
-                              className="text-xs"
-                            >
+                          {provider.services.map(serviceId => (
+                            <Badge key={serviceId} variant="secondary" className="text-xs">
                               {getServiceName(serviceId)}
                             </Badge>
                           ))}
@@ -548,22 +398,17 @@ const ServiceProviderManagement = () => {
                       <div className="flex flex-col gap-1 text-sm">
                         <p className="flex items-center text-gray-500">
                           <span className="font-medium">Level:</span>
-                          <span className="ml-2">
-                            {provider.professional_level}
-                          </span>
+                          <span className="ml-2">{provider.professional_level}</span>
                         </p>
                         <p className="flex items-center text-gray-500">
                           <span className="font-medium">Location:</span>
                           <span className="ml-2">
-                            {getAreaName(provider.specific_area)},{" "}
-                            {getCountyName(provider.county)}
+                            {getAreaName(provider.specific_area)}, {getCountyName(provider.county)}
                           </span>
                         </p>
                         <p className="flex items-center text-gray-500 truncate">
                           <span className="font-medium">Email:</span>
-                          <span className="ml-2 truncate">
-                            {provider.email}
-                          </span>
+                          <span className="ml-2 truncate">{provider.email}</span>
                         </p>
                         <p className="flex items-center text-gray-500">
                           <span className="font-medium">Phone:</span>
@@ -573,100 +418,35 @@ const ServiceProviderManagement = () => {
 
                       <div className="flex flex-wrap gap-2">
                         {provider.facebook_link && (
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            asChild
-                            className="h-8 w-8 rounded-full"
-                          >
-                            <a
-                              href={provider.facebook_link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
+                          <Button variant="outline" size="icon" className="h-8 w-8 rounded-full" asChild>
+                            <a href={provider.facebook_link} target="_blank" rel="noopener noreferrer">
                               <Facebook size={16} />
                             </a>
                           </Button>
                         )}
                         {provider.twitter_link && (
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            asChild
-                            className="h-8 w-8 rounded-full"
-                          >
-                            <a
-                              href={provider.twitter_link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
+                          <Button variant="outline" size="icon" className="h-8 w-8 rounded-full" asChild>
+                            <a href={provider.twitter_link} target="_blank" rel="noopener noreferrer">
                               <Twitter size={16} />
                             </a>
                           </Button>
                         )}
                         {provider.instagram_link && (
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            asChild
-                            className="h-8 w-8 rounded-full"
-                          >
-                            <a
-                              href={provider.instagram_link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
+                          <Button variant="outline" size="icon" className="h-8 w-8 rounded-full" asChild>
+                            <a href={provider.instagram_link} target="_blank" rel="noopener noreferrer">
                               <Instagram size={16} />
-                            </a>
-                          </Button>
-                        )}
-                        {provider.tiktok_link && (
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            asChild
-                            className="h-8 w-8 rounded-full"
-                          >
-                            <a
-                              href={provider.tiktok_link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="currentColor"
-                              >
-                                <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.42 0 .83.09 1.2.26V9.67a6.31 6.31 0 0 0-1.2-.12A6.33 6.33 0 0 0 3.85 18a6.33 6.33 0 0 0 11-4.33V8.49a8.32 8.32 0 0 0 4.77 1.52v-3.32z" />
-                              </svg>
                             </a>
                           </Button>
                         )}
                       </div>
 
                       <div className="flex gap-2 justify-between">
-                        <div className="flex items-center">
-                          <Badge
-                            variant={
-                              provider.is_verified ? "success" : "outline"
-                            }
-                            className="text-xs"
-                          >
-                            {provider.is_verified ? "Verified" : "Unverified"}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center">
-                          <Badge
-                            variant={
-                              provider.is_active ? "default" : "destructive"
-                            }
-                            className="text-xs"
-                          >
-                            {provider.is_active ? "Active" : "Inactive"}
-                          </Badge>
-                        </div>
+                        <Badge variant={provider.is_verified ? "success" : "outline"} className="text-xs">
+                          {provider.is_verified ? "Verified" : "Unverified"}
+                        </Badge>
+                        <Badge variant={provider.is_active ? "default" : "destructive"} className="text-xs">
+                          {provider.is_active ? "Active" : "Inactive"}
+                        </Badge>
                       </div>
                     </div>
                   </CardContent>
@@ -678,70 +458,52 @@ const ServiceProviderManagement = () => {
       </Card>
 
       {/* Add Provider Dialog */}
-      <Dialog
-        open={isAddDialogOpen}
-        onOpenChange={(open) => {
-          setIsAddDialogOpen(open);
-          if (!open) resetForm();
-        }}
-      >
+      <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+        setIsAddDialogOpen(open);
+        if (!open) resetForm();
+      }}>
         <DialogContent className="sm:max-w-[725px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Service Provider</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleAddProvider} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Left Column */}
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="name">Name</Label>
+                  <Label>Name*</Label>
                   <Input
-                    id="name"
-                    placeholder="Full Name"
                     value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
                     required
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="email">Email</Label>
+                  <Label>Email*</Label>
                   <Input
-                    id="email"
                     type="email"
-                    placeholder="Email Address"
                     value={formData.email}
-                    onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
-                    }
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
                     required
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="phone">Phone Number</Label>
+                  <Label>Phone*</Label>
                   <Input
-                    id="phone"
-                    placeholder="Phone Number (Format: +254...)"
                     value={formData.phone_number}
-                    onChange={(e) =>
-                      setFormData({ ...formData, phone_number: e.target.value })
-                    }
+                    onChange={(e) => setFormData({...formData, phone_number: e.target.value})}
                     required
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Must start with +254 and be 13 characters long
-                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Format: +254XXXXXXXXX</p>
                 </div>
 
                 <div>
-                  <Label htmlFor="level">Professional Level</Label>
+                  <Label>Professional Level*</Label>
                   <Select
                     value={formData.professional_level}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, professional_level: value })
-                    }
+                    onValueChange={(value) => setFormData({...formData, professional_level: value})}
                     required
                   >
                     <SelectTrigger>
@@ -757,16 +519,14 @@ const ServiceProviderManagement = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="county">County</Label>
+                  <Label>County*</Label>
                   <Select
                     value={formData.county}
-                    onValueChange={(value) => {
-                      setFormData({
-                        ...formData,
-                        county: value,
-                        specific_area: "", // Reset area when county changes
-                      });
-                    }}
+                    onValueChange={(value) => setFormData({
+                      ...formData, 
+                      county: value,
+                      specific_area: ""
+                    })}
                     required
                   >
                     <SelectTrigger>
@@ -774,10 +534,7 @@ const ServiceProviderManagement = () => {
                     </SelectTrigger>
                     <SelectContent>
                       {counties.map((county) => (
-                        <SelectItem
-                          key={county.id}
-                          value={county.id.toString()}
-                        >
+                        <SelectItem key={county.id} value={county.id.toString()}>
                           {county.name}
                         </SelectItem>
                       ))}
@@ -786,23 +543,15 @@ const ServiceProviderManagement = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="area">Specific Area</Label>
+                  <Label>Specific Area*</Label>
                   <Select
                     value={formData.specific_area}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, specific_area: value })
-                    }
+                    onValueChange={(value) => setFormData({...formData, specific_area: value})}
                     disabled={!formData.county}
                     required
                   >
                     <SelectTrigger>
-                      <SelectValue
-                        placeholder={
-                          formData.county
-                            ? "Select area"
-                            : "Select county first"
-                        }
-                      />
+                      <SelectValue placeholder={formData.county ? "Select area" : "Select county first"} />
                     </SelectTrigger>
                     <SelectContent>
                       {filteredAreas.map((area) => (
@@ -815,18 +564,15 @@ const ServiceProviderManagement = () => {
                 </div>
               </div>
 
+              {/* Right Column */}
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="photo">Profile Photo</Label>
+                  <Label>Profile Photo</Label>
                   <div className="mt-1 flex items-center space-x-4">
                     <div className="flex-shrink-0">
                       <div className="h-24 w-24 rounded-md overflow-hidden bg-gray-100">
                         {previewURL ? (
-                          <img
-                            src={previewURL}
-                            alt="Preview"
-                            className="h-full w-full object-cover"
-                          />
+                          <img src={previewURL} alt="Preview" className="h-full w-full object-cover" />
                         ) : (
                           <div className="h-full w-full flex items-center justify-center text-gray-400">
                             No image
@@ -835,18 +581,11 @@ const ServiceProviderManagement = () => {
                       </div>
                     </div>
                     <label className="block">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() =>
-                          document.getElementById("photo-upload").click()
-                        }
-                      >
+                      <Button type="button" variant="outline" onClick={() => document.getElementById("photo-upload").click()}>
                         Change
                       </Button>
                       <input
                         id="photo-upload"
-                        name="photo"
                         type="file"
                         accept="image/*"
                         className="sr-only"
@@ -857,129 +596,67 @@ const ServiceProviderManagement = () => {
                 </div>
 
                 <div>
-                  <Label>Services</Label>
+                  <Label>Services*</Label>
                   <div className="border rounded-md p-3 mt-1 max-h-32 overflow-y-auto">
                     {services.map((service) => (
-                      <div
-                        key={service.id}
-                        className="flex items-center space-x-2 py-1"
-                      >
+                      <div key={service.id} className="flex items-center space-x-2 py-1">
                         <Checkbox
                           id={`service-${service.id}`}
-                          checked={formData.services.includes(service.id)}
+                          checked={formData.services.includes(service.id.toString())}
                           onCheckedChange={(checked) => {
-                            if (checked) {
-                              setFormData({
-                                ...formData,
-                                services: [...formData.services, service.id],
-                              });
-                            } else {
-                              setFormData({
-                                ...formData,
-                                services: formData.services.filter(
-                                  (id) => id !== service.id
-                                ),
-                              });
-                            }
+                            setFormData({
+                              ...formData,
+                              services: checked
+                                ? [...formData.services, service.id.toString()]
+                                : formData.services.filter(id => id !== service.id.toString())
+                            });
                           }}
                         />
-                        <label
-                          htmlFor={`service-${service.id}`}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                        >
+                        <label htmlFor={`service-${service.id}`} className="text-sm font-medium">
                           {service.title}
                         </label>
                       </div>
                     ))}
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    At least one service must be selected
-                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Social Media Links</Label>
-                  <p className="text-xs text-gray-500">
-                    At least one social link is required
-                  </p>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Facebook size={18} className="text-blue-600" />
-                      <Input
-                        placeholder="Facebook URL"
-                        value={formData.facebook_link}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            facebook_link: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Twitter size={18} className="text-blue-400" />
-                      <Input
-                        placeholder="Twitter URL"
-                        value={formData.twitter_link}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            twitter_link: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Instagram size={18} className="text-pink-600" />
-                      <Input
-                        placeholder="Instagram URL"
-                        value={formData.instagram_link}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            instagram_link: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        className="text-black"
-                      >
-                        <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.42 0 .83.09 1.2.26V9.67a6.31 6.31 0 0 0-1.2-.12A6.33 6.33 0 0 0 3.85 18a6.33 6.33 0 0 0 11-4.33V8.49a8.32 8.32 0 0 0 4.77 1.52v-3.32z" />
-                      </svg>
-                      <Input
-                        placeholder="TikTok URL"
-                        value={formData.tiktok_link}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            tiktok_link: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
+                  <Label>Social Media Links*</Label>
+                  <p className="text-xs text-gray-500">At least one required</p>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Facebook size={18} className="text-blue-600" />
+                    <Input
+                      placeholder="Facebook URL"
+                      value={formData.facebook_link}
+                      onChange={(e) => setFormData({...formData, facebook_link: e.target.value})}
+                    />
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Twitter size={18} className="text-blue-400" />
+                    <Input
+                      placeholder="Twitter URL"
+                      value={formData.twitter_link}
+                      onChange={(e) => setFormData({...formData, twitter_link: e.target.value})}
+                    />
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Instagram size={18} className="text-pink-600" />
+                    <Input
+                      placeholder="Instagram URL"
+                      value={formData.instagram_link}
+                      onChange={(e) => setFormData({...formData, instagram_link: e.target.value})}
+                    />
                   </div>
                 </div>
 
                 <div>
-                  <Label htmlFor="description">Description</Label>
+                  <Label>Description</Label>
                   <Textarea
-                    id="description"
-                    placeholder="Provider description..."
                     value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
+                    onChange={(e) => setFormData({...formData, description: e.target.value})}
                     className="h-20"
                   />
                 </div>
@@ -987,11 +664,7 @@ const ServiceProviderManagement = () => {
             </div>
 
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsAddDialogOpen(false)}
-              >
+              <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={loading}>
@@ -1003,70 +676,52 @@ const ServiceProviderManagement = () => {
       </Dialog>
 
       {/* Edit Provider Dialog */}
-      <Dialog
-        open={isEditDialogOpen}
-        onOpenChange={(open) => {
-          setIsEditDialogOpen(open);
-          if (!open) resetForm();
-        }}
-      >
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+        setIsEditDialogOpen(open);
+        if (!open) resetForm();
+      }}>
         <DialogContent className="sm:max-w-[725px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Service Provider</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleEditProvider} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Left Column */}
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="name">Name</Label>
+                  <Label>Name*</Label>
                   <Input
-                    id="name"
-                    placeholder="Full Name"
                     value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
                     required
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="email">Email</Label>
+                  <Label>Email*</Label>
                   <Input
-                    id="email"
                     type="email"
-                    placeholder="Email Address"
                     value={formData.email}
-                    onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
-                    }
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
                     required
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="phone">Phone Number</Label>
+                  <Label>Phone*</Label>
                   <Input
-                    id="phone"
-                    placeholder="Phone Number (Format: +254...)"
                     value={formData.phone_number}
-                    onChange={(e) =>
-                      setFormData({ ...formData, phone_number: e.target.value })
-                    }
+                    onChange={(e) => setFormData({...formData, phone_number: e.target.value})}
                     required
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Must start with +254 and be 13 characters long
-                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Format: +254XXXXXXXXX</p>
                 </div>
 
                 <div>
-                  <Label htmlFor="level">Professional Level</Label>
+                  <Label>Professional Level*</Label>
                   <Select
                     value={formData.professional_level}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, professional_level: value })
-                    }
+                    onValueChange={(value) => setFormData({...formData, professional_level: value})}
                     required
                   >
                     <SelectTrigger>
@@ -1082,16 +737,14 @@ const ServiceProviderManagement = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="county">County</Label>
+                  <Label>County*</Label>
                   <Select
                     value={formData.county}
-                    onValueChange={(value) => {
-                      setFormData({
-                        ...formData,
-                        county: value,
-                        specific_area: "", // Reset area when county changes
-                      });
-                    }}
+                    onValueChange={(value) => setFormData({
+                      ...formData, 
+                      county: value,
+                      specific_area: ""
+                    })}
                     required
                   >
                     <SelectTrigger>
@@ -1099,10 +752,7 @@ const ServiceProviderManagement = () => {
                     </SelectTrigger>
                     <SelectContent>
                       {counties.map((county) => (
-                        <SelectItem
-                          key={county.id}
-                          value={county.id.toString()}
-                        >
+                        <SelectItem key={county.id} value={county.id.toString()}>
                           {county.name}
                         </SelectItem>
                       ))}
@@ -1111,23 +761,15 @@ const ServiceProviderManagement = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="area">Specific Area</Label>
+                  <Label>Specific Area*</Label>
                   <Select
                     value={formData.specific_area}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, specific_area: value })
-                    }
+                    onValueChange={(value) => setFormData({...formData, specific_area: value})}
                     disabled={!formData.county}
                     required
                   >
                     <SelectTrigger>
-                      <SelectValue
-                        placeholder={
-                          formData.county
-                            ? "Select area"
-                            : "Select county first"
-                        }
-                      />
+                      <SelectValue placeholder={formData.county ? "Select area" : "Select county first"} />
                     </SelectTrigger>
                     <SelectContent>
                       {filteredAreas.map((area) => (
@@ -1140,18 +782,15 @@ const ServiceProviderManagement = () => {
                 </div>
               </div>
 
+              {/* Right Column */}
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="photo">Profile Photo</Label>
+                  <Label>Profile Photo</Label>
                   <div className="mt-1 flex items-center space-x-4">
                     <div className="flex-shrink-0">
                       <div className="h-24 w-24 rounded-md overflow-hidden bg-gray-100">
                         {previewURL ? (
-                          <img
-                            src={previewURL}
-                            alt="Preview"
-                            className="h-full w-full object-cover"
-                          />
+                          <img src={previewURL} alt="Preview" className="h-full w-full object-cover" />
                         ) : (
                           <div className="h-full w-full flex items-center justify-center text-gray-400">
                             No image
@@ -1160,18 +799,11 @@ const ServiceProviderManagement = () => {
                       </div>
                     </div>
                     <label className="block">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() =>
-                          document.getElementById("photo-upload").click()
-                        }
-                      >
+                      <Button type="button" variant="outline" onClick={() => document.getElementById("edit-photo-upload").click()}>
                         Change
                       </Button>
                       <input
-                        id="photo-upload"
-                        name="photo"
+                        id="edit-photo-upload"
                         type="file"
                         accept="image/*"
                         className="sr-only"
@@ -1182,129 +814,67 @@ const ServiceProviderManagement = () => {
                 </div>
 
                 <div>
-                  <Label>Services</Label>
+                  <Label>Services*</Label>
                   <div className="border rounded-md p-3 mt-1 max-h-32 overflow-y-auto">
                     {services.map((service) => (
-                      <div
-                        key={service.id}
-                        className="flex items-center space-x-2 py-1"
-                      >
+                      <div key={service.id} className="flex items-center space-x-2 py-1">
                         <Checkbox
-                          id={`service-${service.id}`}
-                          checked={formData.services.includes(service.id)}
+                          id={`edit-service-${service.id}`}
+                          checked={formData.services.includes(service.id.toString())}
                           onCheckedChange={(checked) => {
-                            if (checked) {
-                              setFormData({
-                                ...formData,
-                                services: [...formData.services, service.id],
-                              });
-                            } else {
-                              setFormData({
-                                ...formData,
-                                services: formData.services.filter(
-                                  (id) => id !== service.id
-                                ),
-                              });
-                            }
+                            setFormData({
+                              ...formData,
+                              services: checked
+                                ? [...formData.services, service.id.toString()]
+                                : formData.services.filter(id => id !== service.id.toString())
+                            });
                           }}
                         />
-                        <label
-                          htmlFor={`service-${service.id}`}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                        >
+                        <label htmlFor={`edit-service-${service.id}`} className="text-sm font-medium">
                           {service.title}
                         </label>
                       </div>
                     ))}
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    At least one service must be selected
-                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Social Media Links</Label>
-                  <p className="text-xs text-gray-500">
-                    At least one social link is required
-                  </p>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Facebook size={18} className="text-blue-600" />
-                      <Input
-                        placeholder="Facebook URL"
-                        value={formData.facebook_link}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            facebook_link: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Twitter size={18} className="text-blue-400" />
-                      <Input
-                        placeholder="Twitter URL"
-                        value={formData.twitter_link}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            twitter_link: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Instagram size={18} className="text-pink-600" />
-                      <Input
-                        placeholder="Instagram URL"
-                        value={formData.instagram_link}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            instagram_link: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        className="text-black"
-                      >
-                        <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.42 0 .83.09 1.2.26V9.67a6.31 6.31 0 0 0-1.2-.12A6.33 6.33 0 0 0 3.85 18a6.33 6.33 0 0 0 11-4.33V8.49a8.32 8.32 0 0 0 4.77 1.52v-3.32z" />
-                      </svg>
-                      <Input
-                        placeholder="TikTok URL"
-                        value={formData.tiktok_link}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            tiktok_link: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
+                  <Label>Social Media Links*</Label>
+                  <p className="text-xs text-gray-500">At least one required</p>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Facebook size={18} className="text-blue-600" />
+                    <Input
+                      placeholder="Facebook URL"
+                      value={formData.facebook_link}
+                      onChange={(e) => setFormData({...formData, facebook_link: e.target.value})}
+                    />
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Twitter size={18} className="text-blue-400" />
+                    <Input
+                      placeholder="Twitter URL"
+                      value={formData.twitter_link}
+                      onChange={(e) => setFormData({...formData, twitter_link: e.target.value})}
+                    />
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Instagram size={18} className="text-pink-600" />
+                    <Input
+                      placeholder="Instagram URL"
+                      value={formData.instagram_link}
+                      onChange={(e) => setFormData({...formData, instagram_link: e.target.value})}
+                    />
                   </div>
                 </div>
 
                 <div>
-                  <Label htmlFor="description">Description</Label>
+                  <Label>Description</Label>
                   <Textarea
-                    id="description"
-                    placeholder="Provider description..."
                     value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
+                    onChange={(e) => setFormData({...formData, description: e.target.value})}
                     className="h-20"
                   />
                 </div>
@@ -1312,11 +882,7 @@ const ServiceProviderManagement = () => {
             </div>
 
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsEditDialogOpen(false)}
-              >
+              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={loading}>
