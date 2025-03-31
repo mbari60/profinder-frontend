@@ -65,6 +65,7 @@ export function UserProvider({ children }) {
 
         // Save user data
         localStorage.setItem("user", JSON.stringify(userData));
+        document.cookie = `user=${encodeURIComponent(JSON.stringify(userData))}; path=/; max-age=86400; SameSite=Strict`;
         setUser(userData);
 
         setLoading(false);
@@ -118,6 +119,7 @@ export function UserProvider({ children }) {
     // Remove cookies
     document.cookie = "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     document.cookie = "refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    document.cookie = "user=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     
     setUser(null);
     router.push("/");

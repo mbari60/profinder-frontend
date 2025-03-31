@@ -410,7 +410,7 @@ const ServiceManagement = () => {
                                 </p>
                                 {service.price && (
                                   <p className="text-sm text-gray-500">
-                                    Price: $
+                                    Price: Ksh.
                                     {parseFloat(service.price).toFixed(2)}
                                   </p>
                                 )}

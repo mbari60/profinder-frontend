@@ -293,6 +293,11 @@ const SiteLayout = ({ children }) => {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>
+                    <Link href="/admin/manageOrders" className="flex w-full">
+                      Manage Orders
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
                     <Link href="/admin/dashboard" className="flex w-full">
                       Dashboard
                     </Link>

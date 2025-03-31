@@ -328,7 +328,7 @@ const ProductManagement = () => {
                     Category: {getCategoryName(product.product_category)}
                   </p>
                   <p className="text-sm text-gray-500">
-                    Price: ${parseFloat(product.price).toFixed(2)}
+                    Price: Ksh.{parseFloat(product.price).toFixed(2)}
                   </p>
                   {product.size && (
                     <p className="text-sm text-gray-500">
