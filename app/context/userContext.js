@@ -1,8 +1,8 @@
-// context/userContext.js
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/utils/api";
-
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 // Create context
 const UserContext = createContext(null);
 
@@ -43,48 +43,137 @@ export function UserProvider({ children }) {
   }, []);
 
   // Login function
+  // const login = async (username, password) => {
+  //   try {
+  //     setError(null);
+  //     setLoading(true);
+
+  //     const response = await api.post("/api/token/", { username, password });
+
+  //     if (response.data.access) {
+  //       // Save tokens
+  //       localStorage.setItem("access_token", response.data.access);
+  //       localStorage.setItem("refresh_token", response.data.refresh);
+
+  //       // Also save tokens as cookies for middleware access
+  //       document.cookie = `access_token=${response.data.access}; path=/; max-age=86400; SameSite=Strict`;
+  //       document.cookie = `refresh_token=${response.data.refresh}; path=/; max-age=604800; SameSite=Strict`;
+
+  //       // Get user info
+  //       const userResponse = await api.get("/api/me/");
+  //       const userData = userResponse.data;
+
+  //       // Save user data
+  //       localStorage.setItem("user", JSON.stringify(userData));
+  //       document.cookie = `user=${encodeURIComponent(JSON.stringify(userData))}; path=/; max-age=86400; SameSite=Strict`;
+  //       setUser(userData);
+
+  //       setLoading(false);
+
+  //       // Handle redirection
+  //       if (userData.password_change_required) {
+  //         router.push("/changePassword");
+  //       } else {
+  //         router.push("/");        
+  //       }
+
+  //       return true;
+  //     }
+
+  //     setLoading(false);
+  //     return false;
+  //   } catch (err) {
+  //     console.error("Login failed:", err);
+  //     setError(err.response?.data?.detail || "Login failed. Please try again.");
+  //     setLoading(false);
+  //     return false;
+  //   }
+  // };
+  
   const login = async (username, password) => {
     try {
       setError(null);
       setLoading(true);
-
+  
       const response = await api.post("/api/token/", { username, password });
-
+  
       if (response.data.access) {
         // Save tokens
         localStorage.setItem("access_token", response.data.access);
         localStorage.setItem("refresh_token", response.data.refresh);
-
+  
         // Also save tokens as cookies for middleware access
         document.cookie = `access_token=${response.data.access}; path=/; max-age=86400; SameSite=Strict`;
         document.cookie = `refresh_token=${response.data.refresh}; path=/; max-age=604800; SameSite=Strict`;
-
+  
         // Get user info
         const userResponse = await api.get("/api/me/");
         const userData = userResponse.data;
-
+  
         // Save user data
         localStorage.setItem("user", JSON.stringify(userData));
         document.cookie = `user=${encodeURIComponent(JSON.stringify(userData))}; path=/; max-age=86400; SameSite=Strict`;
         setUser(userData);
-
+  
         setLoading(false);
-
-        // Handle redirection
-        if (userData.password_change_required) {
-          router.push("/changePassword");
-        } else {
-          router.push("/");        
-        }
-
+  
+        // Show success toast
+        toast.success("Login successful! Redirecting...", {
+          position: "top-right",
+          autoClose: 2000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+        });
+  
+        // Handle redirection with slight delay
+        setTimeout(() => {
+          if (userData.password_change_required) {
+            router.push("/changePassword");
+          } else {
+            router.push("/");        
+          }
+        }, 2000);
+  
         return true;
       }
-
+  
       setLoading(false);
       return false;
     } catch (err) {
       console.error("Login failed:", err);
-      setError(err.response?.data?.detail || "Login failed. Please try again.");
+      
+      // Enhanced error handling
+      let errorMessage = "Login failed. Please try again.";
+      
+      if (err.response) {
+        if (err.response.status === 401) {
+          errorMessage = "Invalid username or password";
+        } else if (err.response.status === 400) {
+          errorMessage = "Invalid request format";
+        } else if (err.response.data?.detail) {
+          errorMessage = err.response.data.detail;
+        } else if (err.response.data?.non_field_errors) {
+          errorMessage = err.response.data.non_field_errors[0];
+        }
+      } else if (err.request) {
+        errorMessage = "No response from server. Please check your connection.";
+      }
+  
+      // Show error toast that stays for 5 seconds
+      toast.error(errorMessage, {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+      });
+  
+      setError(errorMessage);
       setLoading(false);
       return false;
     }

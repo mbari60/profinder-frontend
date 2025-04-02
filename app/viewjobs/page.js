@@ -24,7 +24,7 @@ import {
 import { toast } from "react-toastify";
 import { formatDistance } from "date-fns";
 import api from "@/utils/api";
-import { debounce } from "lodash"; // For debouncing search input
+import { debounce } from "lodash";
 
 const JobListings = React.memo(() => {
   const [jobs, setJobs] = useState([]);
@@ -46,14 +46,14 @@ const JobListings = React.memo(() => {
   const [counties, setCounties] = useState([]);
   const [specificAreas, setSpecificAreas] = useState([]);
 
-  // Fetch data on component mount
+  // Fetch only open jobs on component mount
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
         setLoading(true);
         const [jobsRes, categoriesRes, countiesRes, areasRes] =
           await Promise.all([
-            api.get("/api/job-postings/?status=open"),
+            api.get("/api/job-postings/?status=open"), // Only fetch open jobs
             api.get("/api/service-categories/"),
             api.get("/api/counties/"),
             api.get("/api/specific-areas/"),
@@ -78,7 +78,6 @@ const JobListings = React.memo(() => {
     (job) => {
       if (!job) return "Location not specified";
 
-      // For county
       let countyName = "Unknown County";
       if (job.county) {
         if (typeof job.county === "object" && job.county?.name) {
@@ -89,7 +88,6 @@ const JobListings = React.memo(() => {
         }
       }
 
-      // For specific area
       let areaName = "";
       if (job.specific_area) {
         if (typeof job.specific_area === "object" && job.specific_area?.name) {
@@ -108,13 +106,14 @@ const JobListings = React.memo(() => {
     [counties, specificAreas]
   );
 
-  // Apply filters
+  // Apply filters - only showing open jobs
   const filterJobs = useMemo(() => {
     if (!jobs.length) return [];
 
-    let filteredJobs = [...jobs];
+    // First filter to only include open jobs
+    let filteredJobs = jobs.filter(job => job.status === 'open');
 
-    // Filter by search term
+    // Then apply other filters
     if (searchTerm) {
       const term = searchTerm.toLowerCase().trim();
       filteredJobs = filteredJobs.filter(
@@ -124,7 +123,6 @@ const JobListings = React.memo(() => {
       );
     }
 
-    // Filter by category
     if (selectedCategory) {
       filteredJobs = filteredJobs.filter((job) => {
         if (typeof job.service_category === "object") {
@@ -134,7 +132,6 @@ const JobListings = React.memo(() => {
       });
     }
 
-    // Filter by county
     if (selectedCounty) {
       filteredJobs = filteredJobs.filter((job) => {
         if (typeof job.county === "object") {
@@ -147,14 +144,12 @@ const JobListings = React.memo(() => {
     return filteredJobs;
   }, [jobs, searchTerm, selectedCategory, selectedCounty]);
 
-  // Reset filters
   const resetFilters = useCallback(() => {
     setSearchTerm("");
     setSelectedCategory("");
     setSelectedCounty("");
   }, []);
 
-  // Validate proposal form
   const validateProposal = useCallback(() => {
     const newErrors = {};
 
@@ -189,7 +184,6 @@ const JobListings = React.memo(() => {
     return Object.keys(newErrors).length === 0;
   }, [proposal]);
 
-  // Handle proposal submission
   const handleProposalSubmit = useCallback(
     async (e) => {
       e.preventDefault();
@@ -215,7 +209,6 @@ const JobListings = React.memo(() => {
 
         toast.success("Proposal submitted successfully!");
 
-        // Reset form and close modal
         setProposal({
           provider_name: "",
           provider_email: "",
@@ -239,29 +232,15 @@ const JobListings = React.memo(() => {
     [proposal, selectedJob, validateProposal]
   );
 
-  // Handle input changes
   const handleInputChange = useCallback((field, value) => {
     setProposal((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: "" }));
   }, []);
 
-  // Status badge styling
   const getStatusBadge = useCallback((status) => {
-    const styles = {
-      open: "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100",
-      in_progress:
-        "bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100",
-      completed:
-        "bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-100",
-      cancelled: "bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100",
-    };
-    return (
-      styles[status] ||
-      "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"
-    );
+    return "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100";
   }, []);
 
-  // Get category name
   const getCategoryName = useCallback(
     (job) => {
       if (!job) return "Not specified";
@@ -283,7 +262,6 @@ const JobListings = React.memo(() => {
     [categories]
   );
 
-  // Debounced search input
   const handleSearchChange = useCallback(
     debounce((value) => {
       setSearchTerm(value);
@@ -364,7 +342,7 @@ const JobListings = React.memo(() => {
         </CardContent>
       </Card>
 
-      {/* Job Listings */}
+      {/* Job Listings - Only showing open jobs */}
       <div className="space-y-4">
         {loading ? (
           <div className="text-center py-12">
@@ -373,7 +351,7 @@ const JobListings = React.memo(() => {
         ) : filterJobs.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500 dark:text-gray-400">
-              No job postings found matching your criteria.
+              No open job postings found matching your criteria.
             </p>
           </div>
         ) : (
@@ -391,8 +369,7 @@ const JobListings = React.memo(() => {
                           {job.title}
                         </h2>
                         <Badge className={getStatusBadge(job.status)}>
-                          {job.status?.replace("_", " ").toUpperCase() ||
-                            "OPEN"}
+                          OPEN
                         </Badge>
                       </div>
                       <br />

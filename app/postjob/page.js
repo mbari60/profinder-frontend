@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/card";
 import { toast } from "react-toastify";
 import api from "@/utils/api";
-import { debounce } from "lodash"; // For debouncing API calls
+import { debounce } from "lodash"; 
 
 const JobPostingForm = React.memo(() => {
   const [jobData, setJobData] = useState({
@@ -148,7 +148,7 @@ const JobPostingForm = React.memo(() => {
         const formattedData = {
           ...jobData,
           budget: jobData.budget ? parseFloat(jobData.budget) : null,
-          status: "open",
+          status: "awaiting",
         };
 
         await api.post("/api/job-postings/", formattedData);

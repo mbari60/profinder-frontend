@@ -273,6 +273,14 @@ const SiteLayout = ({ children }) => {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>
+                    <Link
+                      href="/admin/manageJobs"
+                      className="flex w-full"
+                    >
+                      Manage Jobs
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
                     <Link href="/admin/manageUsers" className="flex w-full">
                       Manage Users
                     </Link>
@@ -300,6 +308,11 @@ const SiteLayout = ({ children }) => {
                   <DropdownMenuItem>
                     <Link href="/admin/dashboard" className="flex w-full">
                       Dashboard
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/admin/changePassword" className="flex w-full">
+                      Change Password
                     </Link>
                   </DropdownMenuItem>
                   {isAuthenticated() && isSuperAdmin() && (<DropdownMenuItem>
