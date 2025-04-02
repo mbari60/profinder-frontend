@@ -205,7 +205,7 @@ const OrderManagement = () => {
                     <div className="space-y-2">
                       {order.order_items?.map(item => (
                         <div key={item.id} className="flex justify-between text-sm">
-                          <span>{item.quantity} × {item.product.name}</span>
+                          <span>{item.quantity} × {item.product_name}</span>
                           <span>Ksh.{item.price}</span>
                         </div>
                       ))}

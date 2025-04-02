@@ -32,8 +32,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-
-// Assuming you have an api service configured
+import { toast } from "sonner";
 import api from "@/utils/api";
 
 // Product form initial state
@@ -44,7 +43,6 @@ const initialProductState = {
   size: "",
   product_category: "",
   instagram_link: "",
-  image: "",
 };
 
 const ProductManagement = () => {
@@ -61,6 +59,8 @@ const ProductManagement = () => {
   const [newCategory, setNewCategory] = useState({ name: "" });
   const [editingCategory, setEditingCategory] = useState(null);
   const [editingCategoryData, setEditingCategoryData] = useState({});
+  const [photoFile, setPhotoFile] = useState(null);
+  const [editingPhotoFile, setEditingPhotoFile] = useState(null);
 
   // Fetch data from the backend
   const fetchData = useCallback(async () => {
@@ -84,7 +84,27 @@ const ProductManagement = () => {
     fetchData();
   }, [fetchData]);
 
-  // Category CRUD operations - memoized to prevent unnecessary re-creations
+  // Handle file changes for new product
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setPhotoFile(e.target.files[0]);
+    }
+  };
+
+  // Handle file changes for editing product
+  const handleEditingFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setEditingPhotoFile(e.target.files[0]);
+    }
+  };
+
+  // Reset form state
+  const resetForm = () => {
+    setNewProduct(initialProductState);
+    setPhotoFile(null);
+  };
+
+  // Category CRUD operations
   const handleAddCategory = useCallback(async () => {
     if (!newCategory.name.trim()) return;
 
@@ -93,8 +113,9 @@ const ProductManagement = () => {
       setNewCategory({ name: "" });
       setShowAddCategory(false);
       fetchData();
+      toast.success("Category added successfully");
     } catch (err) {
-      setError("Failed to add category. Please try again.");
+      toast.error("Failed to add category. Please try again.");
     }
   }, [newCategory, fetchData]);
 
@@ -107,8 +128,9 @@ const ProductManagement = () => {
         setEditingCategory(null);
         setEditingCategoryData({});
         fetchData();
+        toast.success("Category updated successfully");
       } catch (err) {
-        setError("Failed to update category. Please try again.");
+        toast.error("Failed to update category. Please try again.");
       }
     },
     [editingCategoryData, fetchData]
@@ -119,14 +141,15 @@ const ProductManagement = () => {
       try {
         await api.delete(`/api/product-categories/${id}/`);
         fetchData();
+        toast.success("Category deleted successfully");
       } catch (err) {
-        setError("Failed to delete category. Please try again.");
+        toast.error("Failed to delete category. Please try again.");
       }
     },
     [fetchData]
   );
 
-  // Product CRUD operations - memoized to prevent unnecessary re-creations
+  // Product CRUD operations
   const handleAddProduct = useCallback(
     async (e) => {
       e.preventDefault();
@@ -135,35 +158,70 @@ const ProductManagement = () => {
       if (
         !newProduct.name ||
         !newProduct.price ||
-        !newProduct.product_category
+        !newProduct.product_category ||
+        !photoFile
       ) {
-        setError("Please fill in all required fields.");
+        toast.error("Please fill in all required fields including the product image.");
         return;
       }
 
       try {
-        await api.post("/api/products/", newProduct);
-        setNewProduct(initialProductState);
+        const formData = new FormData();
+        formData.append("name", newProduct.name);
+        formData.append("description", newProduct.description);
+        formData.append("price", newProduct.price);
+        formData.append("size", newProduct.size);
+        formData.append("product_category", newProduct.product_category);
+        formData.append("instagram_link", newProduct.instagram_link);
+        formData.append("image", photoFile);
+
+        await api.post("/api/products/", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
+        
+        resetForm();
         fetchData();
+        toast.success("Product added successfully");
       } catch (err) {
-        setError("Failed to add product. Please try again.");
+        toast.error("Failed to add product. Please try again.");
       }
     },
-    [newProduct, fetchData]
+    [newProduct, photoFile, fetchData]
   );
 
   const handleUpdateProduct = useCallback(
     async (id) => {
       try {
-        await api.put(`/api/products/${id}/`, editingProductData);
+        const formData = new FormData();
+        formData.append("name", editingProductData.name || "");
+        formData.append("description", editingProductData.description || "");
+        formData.append("price", editingProductData.price || "");
+        formData.append("size", editingProductData.size || "");
+        formData.append("product_category", editingProductData.product_category || "");
+        formData.append("instagram_link", editingProductData.instagram_link || "");
+        
+        if (editingPhotoFile) {
+          formData.append("image", editingPhotoFile);
+        }
+
+        await api.patch(`/api/products/${id}/`, formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
+
         setEditingProduct(null);
         setEditingProductData({});
+        setEditingPhotoFile(null);
         fetchData();
+        toast.success("Product updated successfully");
       } catch (err) {
-        setError("Failed to update product. Please try again.");
+        toast.error("Failed to update product. Please try again.");
       }
     },
-    [editingProductData, fetchData]
+    [editingProductData, editingPhotoFile, fetchData]
   );
 
   const handleDeleteProduct = useCallback(
@@ -174,14 +232,15 @@ const ProductManagement = () => {
       try {
         await api.delete(`/api/products/${id}/`);
         fetchData();
+        toast.success("Product deleted successfully");
       } catch (err) {
-        setError("Failed to delete product. Please try again.");
+        toast.error("Failed to delete product. Please try again.");
       }
     },
     [fetchData]
   );
 
-  // Filter products based on search - memoized to avoid recalculating on every render
+  // Filter products based on search
   const filteredProducts = useMemo(() => {
     const searchTermLower = searchTerm.toLowerCase();
     return searchTerm
@@ -193,7 +252,7 @@ const ProductManagement = () => {
       : products;
   }, [products, searchTerm]);
 
-  // Memoize category lookup function to avoid recalculating on every render
+  // Memoize category lookup function
   const categoryMap = useMemo(() => {
     return categories.reduce((acc, category) => {
       acc[category.id] = category.name;
@@ -218,8 +277,8 @@ const ProductManagement = () => {
       size: product.size,
       product_category: product.product_category,
       instagram_link: product.instagram_link,
-      image: product.image,
     });
+    setEditingPhotoFile(null);
   }, []);
 
   // Handle product form input changes
@@ -242,9 +301,10 @@ const ProductManagement = () => {
   const cancelEditing = useCallback(() => {
     setEditingProduct(null);
     setEditingProductData({});
+    setEditingPhotoFile(null);
   }, []);
 
-  // ProductItem component for better code organization and reduced re-renders
+  // ProductItem component
   const ProductItem = useCallback(
     ({ product }) => (
       <Card key={product.id}>
@@ -297,11 +357,18 @@ const ProductManagement = () => {
                     handleEditingProductChange(e, "instagram_link")
                   }
                 />
-                <Input
-                  placeholder="Image URL"
-                  value={editingProductData.image || ""}
-                  onChange={(e) => handleEditingProductChange(e, "image")}
-                />
+                <div className="col-span-full">
+                  <Input
+                    type="file"
+                    onChange={handleEditingFileChange}
+                    accept="image/*"
+                  />
+                  {product.image && !editingPhotoFile && (
+                    <p className="text-sm text-gray-500 mt-2">
+                      Current image will be kept if no new image is selected
+                    </p>
+                  )}
+                </div>
               </div>
               <Textarea
                 value={editingProductData.description || ""}
@@ -389,6 +456,8 @@ const ProductManagement = () => {
       getCategoryName,
       activateEditMode,
       handleDeleteProduct,
+      handleEditingFileChange,
+      editingPhotoFile,
     ]
   );
 
@@ -481,12 +550,14 @@ const ProductManagement = () => {
                           handleProductInputChange(e, "instagram_link")
                         }
                       />
-                      <Input
-                        placeholder="Image URL"
-                        value={newProduct.image}
-                        onChange={(e) => handleProductInputChange(e, "image")}
-                        required
-                      />
+                      <div className="col-span-full">
+                        <Input
+                          type="file"
+                          onChange={handleFileChange}
+                          accept="image/*"
+                          required
+                        />
+                      </div>
                     </div>
                     <Textarea
                       placeholder="Product description"

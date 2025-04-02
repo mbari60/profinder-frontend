@@ -43,7 +43,7 @@ const SiteLayout = ({ children }) => {
   const router = useRouter();
 
   // Use the authentication context
-  const { user, logout, isAuthenticated, isAdmin } = useUser();
+  const { user, logout, isAuthenticated, isAdmin, isSuperAdmin } = useUser();
 
   // Handle login button click
   const handleLoginClick = () => {
@@ -302,6 +302,11 @@ const SiteLayout = ({ children }) => {
                       Dashboard
                     </Link>
                   </DropdownMenuItem>
+                  {isAuthenticated() && isSuperAdmin() && (<DropdownMenuItem>
+                    <Link href="/admin/manageDeletes" className="flex w-full">
+                      Manage Deletes
+                    </Link>
+                  </DropdownMenuItem>)}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}

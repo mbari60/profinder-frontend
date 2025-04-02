@@ -74,7 +74,7 @@ export function UserProvider({ children }) {
         if (userData.password_change_required) {
           router.push("/changePassword");
         } else {
-          router.push("/manageUsers");
+          router.push("/");        
         }
 
         return true;
@@ -172,6 +172,19 @@ export function UserProvider({ children }) {
   const isAuthenticated = () =>
     !!user && !!localStorage.getItem("access_token");
   const isAdmin = () => user;
+
+  const getSuperusers = () => {
+    return process.env.NEXT_PUBLIC_SUPERUSERS 
+      ? process.env.NEXT_PUBLIC_SUPERUSERS.split(',').map(u => u.trim())
+      : [];
+  };
+
+  // Check if user is superuser
+  const isSuperAdmin = () => {
+    if (!user) return false;
+    return getSuperusers().includes(user.username);
+  };
+  
   const clearError = () => setError(null);
 
   // Context value
@@ -185,6 +198,7 @@ export function UserProvider({ children }) {
     updateUser,
     isAuthenticated,
     isAdmin,
+    isSuperAdmin,
     changePassword,
     firstTimePasswordChange,
     clearError,
