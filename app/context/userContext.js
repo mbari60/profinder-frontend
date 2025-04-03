@@ -131,7 +131,7 @@ export function UserProvider({ children }) {
         // Handle redirection with slight delay
         setTimeout(() => {
           if (userData.password_change_required) {
-            router.push("/changePassword");
+            router.push("admin/changePassword");
           } else {
             router.push("/");        
           }

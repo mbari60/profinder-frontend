@@ -125,8 +125,7 @@ const ProductPage = () => {
         setCategories(categoriesResponse.data);
       } catch (error) {
         if (error.name !== 'AbortError') {
-          console.error("Failed to fetch data", error);
-          toast.error("Failed to load products");
+          // condition if error getting will add later
         }
       } finally {
         setLoading(false);
