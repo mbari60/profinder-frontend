@@ -57,27 +57,27 @@ const SiteLayout = ({ children }) => {
   };
 
   // This effect checks if we're trying to access admin routes while not logged in
-  useEffect(() => {
-    const handleRouteCheck = () => {
-      // Get current path
-      const path = window.location.pathname;
+  // useEffect(() => {
+  //   const handleRouteCheck = () => {
+  //     // Get current path
+  //     const path = window.location.pathname;
 
-      // Check if trying to access admin routes without being logged in or not being admin
-      if (path.startsWith("/admin/") && (!isAuthenticated() || !isAdmin())) {
-        router.push("/login?returnUrl=" + encodeURIComponent(path));
-      }
-    };
+  //     // Check if trying to access admin routes without being logged in or not being admin
+  //     if (path.startsWith("/admin/") && (!isAuthenticated() || !isAdmin())) {
+  //       router.push("/login?returnUrl=" + encodeURIComponent(path));
+  //     }
+  //   };
 
-    // Check on initial load
-    handleRouteCheck();
+  //   // Check on initial load
+  //   handleRouteCheck();
 
-    // This would need to be adapted to your routing system
-    window.addEventListener("popstate", handleRouteCheck);
+  //   // This would need to be adapted to your routing system
+  //   window.addEventListener("popstate", handleRouteCheck);
 
-    return () => {
-      window.removeEventListener("popstate", handleRouteCheck);
-    };
-  }, [isAuthenticated, isAdmin, router]);
+  //   return () => {
+  //     window.removeEventListener("popstate", handleRouteCheck);
+  //   };
+  // }, [isAuthenticated, isAdmin, router]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -286,7 +286,7 @@ const SiteLayout = ({ children }) => {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>
-                    <Link href="/admin/manageBookings" className="flex w-full">
+                    <Link href="/admin/manangeBookings" className="flex w-full">
                       Manage Bookings
                     </Link>
                   </DropdownMenuItem>
