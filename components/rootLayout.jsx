@@ -123,12 +123,12 @@ const SiteLayout = ({ children }) => {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem>
-                <Link href="/flash-sales" className="flex items-center">
-                  <Tags className="mr-2 h-4 w-4" /> Flash Sales
+                <Link href="/properties" className="flex items-center">
+                  <Tags className="mr-2 h-4 w-4" /> House Hunting
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem>
-                <Link href="/community" className="flex items-center">
+                <Link href="/chat" className="flex items-center">
                   <MessageCircle className="mr-2 h-4 w-4" /> Community Chat
                 </Link>
               </DropdownMenuItem>

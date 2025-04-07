@@ -224,7 +224,7 @@ const HomePage = () => {
               location.
             </p>
             <Link
-              href="/house-hunting"
+              href="/properties"
               className="inline-flex items-center text-primary hover:underline"
             >
               Start house hunting →
@@ -303,7 +303,7 @@ const HomePage = () => {
             long!
           </p>
           <Link
-            href="/flash-sales"
+            href="/"
             className="inline-flex items-center text-primary hover:underline"
           >
             View current offers →
