@@ -127,12 +127,13 @@ const SiteLayout = ({ children }) => {
                   <Tags className="mr-2 h-4 w-4" /> House Hunting
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem>
+
+              {/* <DropdownMenuItem>
                 <Link href="/chat" className="flex items-center">
                   <MessageCircle className="mr-2 h-4 w-4" /> Community Chat
                 </Link>
-              </DropdownMenuItem>
-
+              </DropdownMenuItem>*/}
+              
               {/* Only show login/account option in mobile menu */}
               {!isAuthenticated() ? (
                 <DropdownMenuItem onClick={handleLoginClick}>
@@ -206,11 +207,13 @@ const SiteLayout = ({ children }) => {
                 </Link>
               </NavigationMenuItem>
 
-              <NavigationMenuItem>
+              
+              {/* <NavigationMenuItem>
                 <Link href="/chat" className="px-4 py-2">
                   Community Chat
                 </Link>
-              </NavigationMenuItem>
+              </NavigationMenuItem> */}
+              
             </NavigationMenuList>
           </NavigationMenu>
 
@@ -286,7 +289,7 @@ const SiteLayout = ({ children }) => {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>
-                    <Link href="/admin/manangeBookings" className="flex w-full">
+                    <Link href="/admin/manageBookings" className="flex w-full">
                       Manage Bookings
                     </Link>
                   </DropdownMenuItem>

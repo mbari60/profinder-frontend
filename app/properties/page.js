@@ -18,7 +18,7 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Home, Bed, Bath, Ruler, Maximize2, Instagram, Facebook, Twitter, Youtube } from "lucide-react";
+import { MapPin, Home, Bed, Bath, Ruler, Maximize2, Instagram, Facebook, Twitter, Youtube, Search, Filter } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/utils/api";
 import PropertyBookingDialog from "./PropertyBookingDialog";
@@ -29,6 +29,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const PropertyImage = ({ src, alt, className, onClick }) => {
   const [imgSrc, setImgSrc] = useState(src);
@@ -78,10 +79,12 @@ const PropertyListingView = () => {
   const [filteredProperties, setFilteredProperties] = useState([]);
   const [propertyTypes, setPropertyTypes] = useState([]);
   const [counties, setCounties] = useState([]);
+  const [specificAreas, setSpecificAreas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState("all");
   const [selectedCounty, setSelectedCounty] = useState("all");
+  const [selectedArea, setSelectedArea] = useState("all");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [selectedProperty, setSelectedProperty] = useState(null);
@@ -89,8 +92,7 @@ const PropertyListingView = () => {
   const [viewedImage, setViewedImage] = useState(null);
   const [showImageDialog, setShowImageDialog] = useState(false);
   const [viewMode, setViewMode] = useState('details');
-  const [specificAreas, setSpecificAreas] = useState([]);
-  
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -103,15 +105,9 @@ const PropertyListingView = () => {
         api.get("/api/properties/"),
         api.get("/api/property-types/"),
         api.get("/api/counties/"),
-        api.get("api/specific-areas/"),
+        api.get("/api/specific-areas/"),
       ]);
       
-      // const processedProperties = propertiesRes.data.map(property => ({
-      //   ...property,
-      //   photo: property.photo ? getImageUrl(property.photo) : '/images/placeholder-property.jpg',
-      //   additionalPhotos: property.additional_photos?.map(photo => getImageUrl(photo)) || []
-      // }));
-
       const processedProperties = propertiesRes.data.map(property => ({
         ...property,
         photo: property.photo ? getImageUrl(property.photo) : '/images/placeholder-property.jpg',
@@ -147,19 +143,11 @@ const PropertyListingView = () => {
 
   useEffect(() => {
     filterProperties();
-  }, [searchTerm, selectedType, selectedCounty, minPrice, maxPrice, properties]);
+  }, [searchTerm, selectedType, selectedCounty, selectedArea, minPrice, maxPrice, properties]);
 
   const filterProperties = () => {
     let results = [...properties];
 
-    // if (searchTerm) {
-    //   results = results.filter(
-    //     (property) =>
-    //       property.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    //       property.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    //       property.location.toLowerCase().includes(searchTerm.toLowerCase())
-    //   );
-    // }
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
       results = results.filter(
@@ -183,6 +171,12 @@ const PropertyListingView = () => {
       );
     }
 
+    if (selectedArea && selectedArea !== "all") {
+      results = results.filter(
+        (property) => property.specific_area.toString() === selectedArea
+      );
+    }
+
     if (minPrice) {
       results = results.filter(
         (property) => parseFloat(property.price) >= parseFloat(minPrice)
@@ -196,6 +190,11 @@ const PropertyListingView = () => {
     }
 
     setFilteredProperties(results);
+  };
+
+  const getFilteredAreas = () => {
+    if (selectedCounty === "all") return specificAreas;
+    return specificAreas.filter(area => area.county.toString() === selectedCounty);
   };
 
   const handleBookVisit = (property) => {
@@ -231,102 +230,274 @@ const PropertyListingView = () => {
     return area ? area.name : "Unknown Area";
   };
 
+  const clearFilters = () => {
+    setSearchTerm("");
+    setSelectedType("all");
+    setSelectedCounty("all");
+    setSelectedArea("all");
+    setMinPrice("");
+    setMaxPrice("");
+  };
+
   return (
     <div className="p-4 max-w-7xl mx-auto space-y-6">
-      <Card className="sticky top-0 z-10">
-        <CardHeader>
-          <CardTitle className="text-xl font-bold">
-            Find Your Perfect Property
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Sticky Filter Bar */}
+      <div className="sticky top-0 z-20 bg-background pb-4 pt-2 border-b">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-bold">Find Your Perfect Property</h1>
+          <Button 
+            variant="outline" 
+            className="md:hidden"
+            onClick={() => setFilterModalOpen(true)}
+          >
+            <Filter className="mr-2 h-4 w-4" /> Filters
+          </Button>
+        </div>
+
+        {/* Desktop Filters */}
+        <div className="hidden md:grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by title, description or location"
+              placeholder="Search properties..."
+              className="pl-10"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-
-            <Select
-              value={selectedType}
-              onValueChange={(value) => setSelectedType(value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {propertyTypes.map((type) => (
-                  <SelectItem key={type.id} value={type.id.toString()}>
-                    {type.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={selectedCounty}
-              onValueChange={(value) => setSelectedCounty(value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by county" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Counties</SelectItem>
-                {counties.map((county) => (
-                  <SelectItem key={county.id} value={county.id.toString()}>
-                    {county.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <div className="flex gap-2">
-              <Input
-                placeholder="Min price"
-                type="number"
-                value={minPrice}
-                onChange={(e) => setMinPrice(e.target.value)}
-              />
-              <Input
-                placeholder="Max price"
-                type="number"
-                value={maxPrice}
-                onChange={(e) => setMaxPrice(e.target.value)}
-              />
-            </div>
           </div>
-        </CardContent>
-      </Card>
 
-      <div className="text-sm text-muted-foreground">
-        Showing {filteredProperties.length} of {properties.length} properties
+          <Select
+            value={selectedType}
+            onValueChange={(value) => setSelectedType(value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Property Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              {propertyTypes.map((type) => (
+                <SelectItem key={type.id} value={type.id.toString()}>
+                  {type.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={selectedCounty}
+            onValueChange={(value) => {
+              setSelectedCounty(value);
+              setSelectedArea("all"); // Reset area when county changes
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="County" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Counties</SelectItem>
+              {counties.map((county) => (
+                <SelectItem key={county.id} value={county.id.toString()}>
+                  {county.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={selectedArea}
+            onValueChange={(value) => setSelectedArea(value)}
+            disabled={selectedCounty === "all"}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Area" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Areas</SelectItem>
+              {getFilteredAreas().map((area) => (
+                <SelectItem key={area.id} value={area.id.toString()}>
+                  {area.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Input
+            placeholder="Min price"
+            type="number"
+            value={minPrice}
+            onChange={(e) => setMinPrice(e.target.value)}
+          />
+
+          <Input
+            placeholder="Max price"
+            type="number"
+            value={maxPrice}
+            onChange={(e) => setMaxPrice(e.target.value)}
+          />
+        </div>
       </div>
 
+      {/* Results Info */}
+      <div className="flex justify-between items-center">
+        <div className="text-sm text-muted-foreground">
+          Showing {filteredProperties.length} of {properties.length} properties
+        </div>
+        {(selectedType !== "all" || selectedCounty !== "all" || selectedArea !== "all" || minPrice || maxPrice) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearFilters}
+            className="text-primary"
+          >
+            Clear all filters
+          </Button>
+        )}
+      </div>
+
+      {/* Mobile Filter Modal */}
+      <Dialog open={filterModalOpen} onOpenChange={setFilterModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Filter Properties</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Search</label>
+              <Input
+                placeholder="Search properties..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Property Type</label>
+              <Select
+                value={selectedType}
+                onValueChange={(value) => setSelectedType(value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All Types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {propertyTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.id.toString()}>
+                      {type.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">County</label>
+              <Select
+                value={selectedCounty}
+                onValueChange={(value) => {
+                  setSelectedCounty(value);
+                  setSelectedArea("all");
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All Counties" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Counties</SelectItem>
+                  {counties.map((county) => (
+                    <SelectItem key={county.id} value={county.id.toString()}>
+                      {county.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Area</label>
+              <Select
+                value={selectedArea}
+                onValueChange={(value) => setSelectedArea(value)}
+                disabled={selectedCounty === "all"}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All Areas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Areas</SelectItem>
+                  {getFilteredAreas().map((area) => (
+                    <SelectItem key={area.id} value={area.id.toString()}>
+                      {area.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Min Price</label>
+                <Input
+                  placeholder="Min"
+                  type="number"
+                  value={minPrice}
+                  onChange={(e) => setMinPrice(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Max Price</label>
+                <Input
+                  placeholder="Max"
+                  type="number"
+                  value={maxPrice}
+                  onChange={(e) => setMaxPrice(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Property Grid */}
       {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="p-0">
+                <Skeleton className="h-48 w-full rounded-t-lg" />
+              </CardHeader>
+              <CardContent className="pt-4 space-y-3">
+                <Skeleton className="h-6 w-3/4" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-2/3" />
+                <div className="flex gap-4 pt-2">
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-4 w-16" />
+                </div>
+              </CardContent>
+              <CardFooter className="flex justify-between pt-4">
+                <Skeleton className="h-9 w-24" />
+                <Skeleton className="h-9 w-24" />
+              </CardFooter>
+            </Card>
+          ))}
         </div>
       ) : filteredProperties.length === 0 ? (
         <Card>
-          <CardContent className="py-8 text-center">
-            <p className="text-lg">No properties match your search criteria</p>
-            <Button
-              variant="link"
-              onClick={() => {
-                setSearchTerm("");
-                setSelectedType("all");
-                setSelectedCounty("all");
-                setMinPrice("");
-                setMaxPrice("");
-              }}
-            >
-              Clear all filters
-            </Button>
+          <CardContent className="py-12 text-center">
+            <div className="mx-auto flex flex-col items-center justify-center space-y-4">
+              <Search className="h-12 w-12 text-muted-foreground" />
+              <h3 className="text-lg font-medium">No properties found</h3>
+              <p className="text-sm text-muted-foreground">
+                Try adjusting your search or filter criteria
+              </p>
+              <Button onClick={clearFilters}>Clear all filters</Button>
+            </div>
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredProperties.map((property) => (
             <Card key={property.id} className="hover:shadow-lg transition-shadow overflow-hidden group">
               <CardHeader className="p-0 relative">
@@ -338,27 +509,34 @@ const PropertyListingView = () => {
                     onClick={() => handleViewProperty(property, 'image')}
                   />
                 </div>
-                <Badge
-                  variant="secondary"
-                  className="absolute top-2 left-2 capitalize"
-                >
-                  {property.status}
-                </Badge>
-                <Badge variant="default" className="absolute top-2 right-2">
-                  KES {parseFloat(property.price).toLocaleString()}
-                </Badge>
+                <div className="absolute top-2 left-2 flex gap-2">
+                  <Badge
+                    variant="secondary"
+                    className="capitalize backdrop-blur-sm bg-white/30 dark:bg-black/30"
+                  >
+                    {property.status}
+                  </Badge>
+                  <Badge 
+                    variant="default" 
+                    className="backdrop-blur-sm bg-white/30 dark:bg-black/30"
+                  >
+                    KES {parseFloat(property.price).toLocaleString()}
+                  </Badge>
+                </div>
               </CardHeader>
               <CardContent className="pt-4">
-                <CardTitle className="text-lg mb-2">{property.title}</CardTitle>
+                <CardTitle className="text-lg mb-2 line-clamp-1">{property.title}</CardTitle>
 
                 <div className="flex items-center text-sm text-muted-foreground mb-2">
-                  <MapPin className="h-4 w-4 mr-1" />
-                  {getSpecificAreaName(property.specific_area)}, {getCountyName(property.county)}
+                  <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
+                  <span className="truncate">
+                    {getSpecificAreaName(property.specific_area)}, {getCountyName(property.county)}
+                  </span>
                 </div>
 
                 <div className="flex items-center text-sm text-muted-foreground mb-3">
-                  <Home className="h-4 w-4 mr-1" />
-                  {getPropertyTypeName(property.property_type)}
+                  <Home className="h-4 w-4 mr-1 flex-shrink-0" />
+                  <span>{getPropertyTypeName(property.property_type)}</span>
                 </div>
 
                 <p className="text-sm line-clamp-3 mb-4">
@@ -368,31 +546,32 @@ const PropertyListingView = () => {
                 <div className="flex gap-4 text-sm text-muted-foreground">
                   {property.bedrooms && (
                     <div className="flex items-center">
-                      <Bed className="h-4 w-4 mr-1" />
-                      {property.bedrooms} beds
+                      <Bed className="h-4 w-4 mr-1 flex-shrink-0" />
+                      <span>{property.bedrooms} beds</span>
                     </div>
                   )}
                   {property.bathrooms && (
                     <div className="flex items-center">
-                      <Bath className="h-4 w-4 mr-1" />
-                      {property.bathrooms} baths
+                      <Bath className="h-4 w-4 mr-1 flex-shrink-0" />
+                      <span>{property.bathrooms} baths</span>
                     </div>
                   )}
                   {property.size && (
                     <div className="flex items-center">
-                      <Ruler className="h-4 w-4 mr-1" />
-                      {property.size} sqft
+                      <Ruler className="h-4 w-4 mr-1 flex-shrink-0" />
+                      <span>{property.size} sqft</span>
                     </div>
                   )}
                 </div>
 
-                {/* Social Media Links in Card */}
-                <div className="flex gap-3 mt-4">
-                  <p>View posts social media on</p>
-                  <SocialMediaLink url={property.facebook_link} icon={Facebook} />
-                  <SocialMediaLink url={property.instagram_link} icon={Instagram} />
-                  <SocialMediaLink url={property.twitter_link} icon={Twitter} />
-                  <SocialMediaLink url={property.tiktok_link} icon={Youtube} />
+                <div className="flex gap-3 mt-4 items-center">
+                  <span className="text-sm text-muted-foreground">Social:</span>
+                  <div className="flex gap-2">
+                    <SocialMediaLink url={property.facebook_link} icon={Facebook} />
+                    <SocialMediaLink url={property.instagram_link} icon={Instagram} />
+                    <SocialMediaLink url={property.twitter_link} icon={Twitter} />
+                    <SocialMediaLink url={property.tiktok_link} icon={Youtube} />
+                  </div>
                 </div>
               </CardContent>
               <CardFooter className="flex justify-between border-t pt-4">
@@ -401,9 +580,13 @@ const PropertyListingView = () => {
                   size="sm"
                   onClick={() => handleViewProperty(property, 'details')}
                 >
-                  View Property
+                  View Details
                 </Button>
-                <Button size="sm" onClick={() => handleBookVisit(property)}>
+                <Button 
+                  size="sm" 
+                  onClick={() => handleBookVisit(property)}
+                  className="bg-primary hover:bg-primary/90"
+                >
                   Book Visit
                 </Button>
               </CardFooter>
@@ -412,6 +595,7 @@ const PropertyListingView = () => {
         </div>
       )}
 
+      {/* Property Details Dialog */}
       {selectedProperty && (
         <>
           <PropertyBookingDialog
@@ -427,18 +611,23 @@ const PropertyListingView = () => {
                 <>
                   <DialogHeader className="px-6 pt-6">
                     <DialogTitle>{selectedProperty.title}</DialogTitle>
+                    <DialogDescription>
+                      {getSpecificAreaName(selectedProperty.specific_area)}, {getCountyName(selectedProperty.county)}
+                    </DialogDescription>
                   </DialogHeader>
                   <div className="w-full flex justify-center">
                     <img
                       src={viewedImage || '/images/placeholder-property.jpg'}
                       alt={selectedProperty.title}
-                      className="max-h-[70vh] object-contain"
+                      className="max-h-[70vh] object-contain rounded-lg"
                     />
                   </div>
                   {selectedProperty.additionalPhotos?.length > 0 && (
                     <div className="grid grid-cols-4 gap-2 p-4 border-t">
                       <div
-                        className={`relative h-20 cursor-pointer ${viewedImage === selectedProperty.photo ? 'ring-2 ring-primary' : ''}`}
+                        className={`relative h-20 cursor-pointer rounded-md overflow-hidden ${
+                          viewedImage === selectedProperty.photo ? 'ring-2 ring-primary' : 'ring-1 ring-border'
+                        }`}
                         onClick={() => setViewedImage(selectedProperty.photo)}
                       >
                         <img
@@ -450,7 +639,9 @@ const PropertyListingView = () => {
                       {selectedProperty.additionalPhotos.map((photo, index) => (
                         <div
                           key={index}
-                          className={`relative h-20 cursor-pointer ${viewedImage === photo ? 'ring-2 ring-primary' : ''}`}
+                          className={`relative h-20 cursor-pointer rounded-md overflow-hidden ${
+                            viewedImage === photo ? 'ring-2 ring-primary' : 'ring-1 ring-border'
+                          }`}
                           onClick={() => setViewedImage(photo)}
                         >
                           <img
@@ -462,12 +653,17 @@ const PropertyListingView = () => {
                       ))}
                     </div>
                   )}
-                  <Button 
-                    className="mt-4"
-                    onClick={() => setViewMode('details')}
-                  >
-                    View Full Property Details
-                  </Button>
+                  <div className="flex justify-between mt-4">
+                    <Button 
+                      variant="outline"
+                      onClick={() => setViewMode('details')}
+                    >
+                      View Full Details
+                    </Button>
+                    <Button onClick={() => handleBookVisit(selectedProperty)}>
+                      Book a Visit
+                    </Button>
+                  </div>
                 </>
               ) : (
                 <>
@@ -510,7 +706,6 @@ const PropertyListingView = () => {
                         </p>
                       </div>
 
-                      {/* Social Media Links in Details View */}
                       <div>
                         <h3 className="font-semibold">Social Media</h3>
                         <div className="flex gap-4 mt-2">
@@ -541,7 +736,7 @@ const PropertyListingView = () => {
                     <div className="space-y-4">
                       <div className="grid grid-cols-3 gap-4">
                         {selectedProperty.bedrooms && (
-                          <div className="flex flex-col items-center">
+                          <div className="flex flex-col items-center p-3 bg-muted rounded-lg">
                             <Bed className="h-6 w-6 mb-1" />
                             <span className="text-sm font-medium">{selectedProperty.bedrooms}</span>
                             <span className="text-xs text-muted-foreground">Beds</span>
@@ -549,7 +744,7 @@ const PropertyListingView = () => {
                         )}
                         
                         {selectedProperty.bathrooms && (
-                          <div className="flex flex-col items-center">
+                          <div className="flex flex-col items-center p-3 bg-muted rounded-lg">
                             <Bath className="h-6 w-6 mb-1" />
                             <span className="text-sm font-medium">{selectedProperty.bathrooms}</span>
                             <span className="text-xs text-muted-foreground">Baths</span>
@@ -557,7 +752,7 @@ const PropertyListingView = () => {
                         )}
                         
                         {selectedProperty.size && (
-                          <div className="flex flex-col items-center">
+                          <div className="flex flex-col items-center p-3 bg-muted rounded-lg">
                             <Ruler className="h-6 w-6 mb-1" />
                             <span className="text-sm font-medium">{selectedProperty.size}</span>
                             <span className="text-xs text-muted-foreground">sqft</span>
@@ -565,16 +760,16 @@ const PropertyListingView = () => {
                         )}
                       </div>
                       
-                      <div>
+                      <div className="p-4 bg-muted rounded-lg">
                         <h3 className="font-semibold">Price</h3>
-                        <p className="text-lg font-bold text-primary">
+                        <p className="text-2xl font-bold text-primary">
                           KES {parseFloat(selectedProperty.price).toLocaleString()}
                         </p>
                       </div>
                       
-                      <div>
+                      <div className="p-4 bg-muted rounded-lg">
                         <h3 className="font-semibold">Status</h3>
-                        <Badge variant="secondary" className="capitalize">
+                        <Badge variant="secondary" className="capitalize mt-1">
                           {selectedProperty.status}
                         </Badge>
                       </div>

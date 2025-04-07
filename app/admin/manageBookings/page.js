@@ -21,10 +21,11 @@ const BookingsManagement = () => {
   const [bookings, setBookings] = useState([]);
   const [filteredBookings, setFilteredBookings] = useState([]);
   const [properties, setProperties] = useState([]);
+  const [propertyTypes, setPropertyTypes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState("");
-  const [selectedProperty, setSelectedProperty] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("all");
+  const [selectedPropertyType, setSelectedPropertyType] = useState("all");
 
   useEffect(() => {
     fetchData();
@@ -33,15 +34,18 @@ const BookingsManagement = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [bookingsRes, propertiesRes] = await Promise.all([
+      const [bookingsRes, propertiesRes, typesRes] = await Promise.all([
         api.get("/api/property-visits/"),
         api.get("/api/properties/"),
+        api.get("/api/property-types/"),
       ]);
+      
       setBookings(bookingsRes.data);
       setFilteredBookings(bookingsRes.data);
       setProperties(propertiesRes.data);
+      setPropertyTypes(typesRes.data);
     } catch (error) {
-      toast.error("Failed to fetch bookings");
+      toast.error("Failed to fetch data");
     } finally {
       setLoading(false);
     }
@@ -49,7 +53,7 @@ const BookingsManagement = () => {
 
   useEffect(() => {
     filterBookings();
-  }, [searchTerm, selectedStatus, selectedProperty, bookings]);
+  }, [searchTerm, selectedStatus, selectedPropertyType, bookings, properties]);
 
   const filterBookings = () => {
     let results = [...bookings];
@@ -62,15 +66,21 @@ const BookingsManagement = () => {
       );
     }
 
-    if (selectedStatus) {
+    if (selectedStatus !== "all") {
       results = results.filter(booking => 
         booking.status === selectedStatus
       );
     }
 
-    if (selectedProperty) {
+    if (selectedPropertyType !== "all") {
+      // First get all property IDs that match the selected type
+      const propertyIdsOfType = properties
+        .filter(property => property.property_type.toString() === selectedPropertyType)
+        .map(property => property.id);
+      
+      // Then filter bookings that match these property IDs
       results = results.filter(booking => 
-        booking.property.toString() === selectedProperty
+        propertyIdsOfType.includes(booking.property)
       );
     }
 
@@ -95,6 +105,14 @@ const BookingsManagement = () => {
   const getPropertyName = (propertyId) => {
     const property = properties.find(p => p.id === propertyId);
     return property ? property.title : "Unknown Property";
+  };
+
+  const getPropertyTypeName = (propertyId) => {
+    const property = properties.find(p => p.id === propertyId);
+    if (!property) return "Unknown";
+    
+    const type = propertyTypes.find(t => t.id === property.property_type);
+    return type ? type.name : "Unknown Type";
   };
 
   const formatDate = (dateString) => {
@@ -135,7 +153,7 @@ const BookingsManagement = () => {
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Statuses</SelectItem>
+                <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="confirmed">Confirmed</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
@@ -143,15 +161,15 @@ const BookingsManagement = () => {
               </SelectContent>
             </Select>
             
-            <Select value={selectedProperty} onValueChange={setSelectedProperty}>
+            <Select value={selectedPropertyType} onValueChange={setSelectedPropertyType}>
               <SelectTrigger>
-                <SelectValue placeholder="Filter by property" />
+                <SelectValue placeholder="Filter by property type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Properties</SelectItem>
-                {properties.map((property) => (
-                  <SelectItem key={property.id} value={property.id.toString()}>
-                    {property.title}
+                <SelectItem value="all">All Property Types</SelectItem>
+                {propertyTypes.map((type) => (
+                  <SelectItem key={type.id} value={type.id.toString()}>
+                    {type.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -178,8 +196,8 @@ const BookingsManagement = () => {
               variant="link" 
               onClick={() => {
                 setSearchTerm("");
-                setSelectedStatus("");
-                setSelectedProperty("");
+                setSelectedStatus("all");
+                setSelectedPropertyType("all");
               }}
             >
               Clear all filters
@@ -193,6 +211,7 @@ const BookingsManagement = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Property</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Visitor</TableHead>
                   <TableHead>Visit Date</TableHead>
                   <TableHead>Status</TableHead>
@@ -207,6 +226,9 @@ const BookingsManagement = () => {
                         <Home className="h-4 w-4 text-muted-foreground" />
                         <span>{getPropertyName(booking.property)}</span>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {getPropertyTypeName(booking.property)}
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
